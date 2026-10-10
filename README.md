@@ -24,25 +24,35 @@ leaves your machine.
 | ![Blast radius view](docs/screenshots/blast-radius.png) | ![Node inspector](docs/screenshots/inspector.png) |
 | Change one file → see everything it touches, by degree. | Exports, imports with line numbers, dependents. |
 
-## The 60-second version
+## The 10-second version
+
+Have Node 18+? One command, in your repo's folder:
 
 ```bash
-# Option A: install from npm (quickest)
-npm install -g codequest-ai
-cd /path/to/your-repo && codequest scan
-
-# Option B: drop-in folder (full Copilot pack: prompts, skills, MCP server)
-cp -r codequest /path/to/your-repo/
-cd /path/to/your-repo && ./codequest/bin/codequest scan
+npx codequest-ai start
 ```
 
-# Then, with either option:
-codequest start                  # the easy one: copy the pack into your repo, set up your IDE, open the graph in your browser
+That's it. It copies the CodeQuest pack into your repo, configures your IDE (VS Code, Cursor, Windsurf, Zed), scans your code, and opens the interactive graph in your browser at `http://127.0.0.1:1337`.
 
-# Or step by step:
-codequest scan && codequest map  # terminal: build the graph, print the repo map
-codequest visualize              # just the browser graph
-./codequest/bin/codequest setup   # auto-configure your IDEs (VS Code, Cursor, Windsurf, Zed, …)
+No Node yet? One command installs everything:
+
+```bash
+# macOS / Linux
+curl -fsSL https://raw.githubusercontent.com/abicevoice1-sudo/CodeQuest/main/install.sh | bash
+```
+
+```powershell
+# Windows (PowerShell)
+irm https://raw.githubusercontent.com/abicevoice1-sudo/CodeQuest/main/install.ps1 | iex
+```
+
+Prefer a global install instead of npx? `npm install -g codequest-ai`, then `codequest start` in any repo.
+
+## Or step by step (the full Copilot pack)
+
+```bash
+# Drop-in folder (prompts, skills, MCP server)
+./codequest/bin/codequest scan && ./codequest/bin/codequest map
 
 # Optional: set your audience (beginner/professional/expert, business lens)
 ./codequest/bin/codequest init --audience professional

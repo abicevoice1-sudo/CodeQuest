@@ -1,10 +1,11 @@
 # Changelog
 
 ## 1.2.0 — 2026-10-10
-- New `start` command: the super-easy one — scans the repo, sets up your IDE, and opens the interactive graph in your browser. One command, everything.
-- New `visualize` command: scans the repo, serves the visualizer locally, and opens it in your browser — one command, zero setup.
+- New `start` command: the super-easy one — copies the pack into your repo, sets up your IDE, scans, and opens the interactive graph in your browser. One command, everything.
+- One-line setup: `npx codequest-ai start` (Node 18+), or `install.sh` / `install.ps1` one-liners that install Node + the package + launch.
+- New `visualize` command: scans the repo, serves the visualizer locally, and opens it in your browser — one command, zero setup. Always on port 1337.
 - The visualizer now ships inside the npm package and the drop-in folder.
-- Test suite: 20/20 (analyzer) green.
+- Test suite: 21/21 (analyzer) green.
 
 ## 1.1.1 — 2026-10-09
 
