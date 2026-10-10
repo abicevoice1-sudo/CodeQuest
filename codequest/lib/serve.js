@@ -65,14 +65,18 @@ function cmdVisualize(dir, packRoot, flags) {
     fs.createReadStream(f).pipe(res);
   });
 
-  server.listen(0, '127.0.0.1', () => {
-    const port = server.address().port;
-    const url = `http://127.0.0.1:${port}`;
+  server.on('error', (e) => {
+    if (e.code === 'EADDRINUSE') {
+      return fail(`port ${VIS_PORT} is busy — another codequest visualizer is already running. Stop it first.`, flags.json);
+    }
+    fail('visualizer server failed: ' + e.message, flags.json);
+  });
+  server.listen(VIS_PORT, '127.0.0.1', () => {
+    const url = `http://127.0.0.1:${VIS_PORT}`;
     if (!flags.json) out(`codequest: visualizer live at ${url}  —  Ctrl+C to stop`);
     else out(JSON.stringify({ url }));
     openBrowser(url, !!flags.json);
   });
-  server.on('error', (e) => fail('visualizer server failed: ' + e.message, flags.json));
 }
 
 function buildPage(visDir, graph) {
@@ -81,10 +85,44 @@ function buildPage(visDir, graph) {
     .replace('</head>', `<script>window.__CODEQUEST_GRAPH__=${safe};</script>\n</head>`);
 }
 
+const VIS_PORT = 1337;
+
+/* Copy the drop-in pack (prompts, skills, CI, docs) into the target repo.
+   Skips anything already there — never overwrites the user's files. */
+function copyPack(dir, packRoot) {
+  const SKIP = new Set(['bin/', 'lib/', 'visualizer/']); // tool internals, not the pack
+  const pkg = JSON.parse(fs.readFileSync(path.join(packRoot, 'package.json'), 'utf8'));
+  const copied = [], skipped = [];
+  const putFile = (rel) => {
+    const dst = path.join(dir, rel);
+    if (fs.existsSync(dst)) { skipped.push(rel); return; }
+    fs.mkdirSync(path.dirname(dst), { recursive: true });
+    fs.copyFileSync(path.join(packRoot, rel), dst);
+    copied.push(rel);
+  };
+  const walk = (rel) => {
+    const st = fs.statSync(path.join(packRoot, rel));
+    if (st.isDirectory()) { for (const e of fs.readdirSync(path.join(packRoot, rel))) walk(path.join(rel, e)); }
+    else putFile(rel);
+  };
+  for (const entry of pkg.files || []) {
+    if (SKIP.has(entry)) continue;
+    const rel = entry.replace(/\/$/, '');
+    if (!fs.existsSync(path.join(packRoot, rel))) continue;
+    walk(rel);
+  }
+  return { copied, skipped };
+}
+
 function cmdStart(dir, packRoot, asJson, flags) {
-  // The super-easy one: scan the repo, configure the IDE, open the visualizer.
+  // The super-easy one: copy the pack in, configure the IDE, scan, open the graph.
   const { cmdSetup } = require('./setup');
-  if (!asJson) out('codequest: setting things up…');
+  const { copied } = copyPack(dir, packRoot);
+  if (!asJson) {
+    out(copied.length
+      ? `codequest: copied the pack into this repo (${copied.length} files)`
+      : 'codequest: pack already in this repo');
+  }
   cmdSetup(dir, packRoot, asJson, flags);
   if (!asJson) out('');
   cmdVisualize(dir, packRoot, flags);

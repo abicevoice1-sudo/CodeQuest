@@ -53,7 +53,7 @@ function main() {
       '  setup [dir]                detect local IDEs/AI assistants and configure each one',
       '  history [dir]              record a drift snapshot (.codequest/history.jsonl)',
       '  trends [dir]               show drift history over time',
-      '  start [dir]                the easy one: scan + set up your IDE + open the visualizer',
+      '  start [dir]                the easy one: copy the pack in, set up your IDE, open the graph',
       '  visualize [dir]            scan + open the interactive graph in your browser',
       '',
       'Add --json for machine-readable output.',

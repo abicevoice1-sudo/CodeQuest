@@ -301,6 +301,8 @@ test('start: runs setup then serves the visualizer (json mode)', async () => {
   assert.ok(buf.includes('"written"'), 'setup json emitted');
   assert.ok(fs.existsSync(path.join(d, '.codequest', 'graph.json')), 'graph written');
   assert.ok(fs.existsSync(path.join(d, 'AGENTS.md')), 'AGENTS.md written by setup');
+  assert.ok(fs.existsSync(path.join(d, 'CODEQUEST.md')), 'pack copied into the repo');
+  assert.ok(fs.existsSync(path.join(d, 'skills')), 'pack skills copied');
   // the served page boots straight into this repo's graph
   const page = await new Promise((resolve, reject) => {
     require('node:http').get(url + '/', (res) => {

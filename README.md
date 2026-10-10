@@ -37,7 +37,7 @@ cd /path/to/your-repo && ./codequest/bin/codequest scan
 ```
 
 # Then, with either option:
-codequest start                  # the easy one: scan + set up your IDE + open the graph in your browser
+codequest start                  # the easy one: copy the pack into your repo, set up your IDE, open the graph in your browser
 
 # Or step by step:
 codequest scan && codequest map  # terminal: build the graph, print the repo map
