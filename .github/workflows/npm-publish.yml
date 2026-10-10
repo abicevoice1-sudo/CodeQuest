@@ -1,0 +1,43 @@
+name: Publish to npm
+
+# Auto-publishes codequest-ai whenever the version in codequest/package.json
+# changes on main. Requires one repo secret: NPM_TOKEN (an npm Automation token).
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'codequest/package.json'
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    defaults:
+      run:
+        working-directory: codequest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Skip if this version is already live
+        id: check
+        run: |
+          VER=$(node -p "require('./package.json').version")
+          echo "version=$VER" >> "$GITHUB_OUTPUT"
+          if npm view codequest-ai versions --json 2>/dev/null | grep -q "\"$VER\""; then
+            echo "published=true" >> "$GITHUB_OUTPUT"
+            echo "v$VER already on npm — skipping"
+          else
+            echo "published=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Publish to npm
+        if: steps.check.outputs.published == 'false'
+        run: npm publish --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
