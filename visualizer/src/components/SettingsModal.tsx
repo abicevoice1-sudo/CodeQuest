@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { loadAISettings, saveAISettings } from '../lib/ai';
-import { getVoices, loadVoiceSettings, saveVoiceSettings, speak } from '../lib/voice';
+import { getVoices, groupVoices, loadVoiceSettings, saveVoiceSettings, speak } from '../lib/voice';
 import { THEMES, type ThemeId } from '../lib/theme';
 
 interface EnvMatch { key: string; score: number; masked: string; }
@@ -26,6 +26,7 @@ export function SettingsModal({
   const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([]);
 
   useEffect(() => { getVoices().then(setVoices); }, []);
+  const voiceGroups = useMemo(() => groupVoices(voices), [voices]);
 
   const save = () => {
     saveAISettings({ ...s, endpoint: s.endpoint.trim().replace(/\/$/, ''), model: s.model.trim() });
@@ -37,6 +38,14 @@ export function SettingsModal({
   const previewVoice = () => {
     saveVoiceSettings(vs);
     speak('Hello! This is how I will sound when I explain your code.');
+  };
+
+  const pickVoice = (uri: string) => {
+    const next = { ...vs, voiceURI: uri };
+    setVs(next);
+    // Live preview so you hear each voice as you browse.
+    saveVoiceSettings(next);
+    speak('This is my voice.');
   };
 
   const scanEnv = async () => {
@@ -86,13 +95,17 @@ export function SettingsModal({
         <label>Voice
           <select
             value={vs.voiceURI}
-            onChange={(e) => setVs({ ...vs, voiceURI: e.target.value })}
+            onChange={(e) => pickVoice(e.target.value)}
           >
-            <option value="">System default</option>
-            {voices.map((v) => (
-              <option key={v.voiceURI} value={v.voiceURI}>
-                {v.name} — {v.lang}{v.localService ? '' : ' (network)'}
-              </option>
+            <option value="">★ Best available (auto)</option>
+            {voiceGroups.map((g) => (
+              <optgroup key={g.label} label={g.label}>
+                {g.voices.map((v) => (
+                  <option key={v.voiceURI} value={v.voiceURI}>
+                    {v.name}{v.localService ? '' : ' · network'}
+                  </option>
+                ))}
+              </optgroup>
             ))}
           </select>
         </label>

@@ -92,6 +92,53 @@ export function getVoices(): Promise<SpeechSynthesisVoice[]> {
   });
 }
 
+/** Pick the best voice when the user hasn't chosen one: prefer high-quality
+    English voices (Apple enhanced, Google natural), then any English, then default. */
+export function pickBestVoice(voices: SpeechSynthesisVoice[]): SpeechSynthesisVoice | null {
+  if (!voices.length) return null;
+  const en = voices.filter((v) => /^en([-_]|$)/i.test(v.lang));
+  const pool = en.length ? en : voices;
+  const premium = pool.find((v) => /samantha|zira|david|mark|google us english|natural|enhanced|premium/i.test(v.name));
+  if (premium) return premium;
+  const local = pool.find((v) => v.localService);
+  if (local) return local;
+  const def = pool.find((v) => v.default);
+  return def || pool[0];
+}
+
+/** Group voices by base language for the picker (e.g. "English (US)"). */
+export function groupVoices(voices: SpeechSynthesisVoice[]): Array<{ label: string; voices: SpeechSynthesisVoice[] }> {
+  const groups = new Map<string, SpeechSynthesisVoice[]>();
+  for (const v of voices) {
+    const base = (v.lang || 'unknown').split(/[-_]/)[0].toLowerCase();
+    const label = languageName(base, v.lang);
+    if (!groups.has(label)) groups.set(label, []);
+    groups.get(label)!.push(v);
+  }
+  return [...groups.entries()]
+    .map(([label, vs]) => ({
+      label,
+      voices: vs.sort((a, b) => a.name.localeCompare(b.name)),
+    }))
+    .sort((a, b) => {
+      // English first, then alphabetical.
+      if (/^english/i.test(a.label)) return -1;
+      if (/^english/i.test(b.label)) return 1;
+      return a.label.localeCompare(b.label);
+    });
+}
+
+function languageName(base: string, full: string): string {
+  const names: Record<string, string> = {
+    en: 'English', es: 'Spanish', fr: 'French', de: 'German', it: 'Italian',
+    pt: 'Portuguese', ru: 'Russian', ja: 'Japanese', ko: 'Korean', zh: 'Chinese',
+    hi: 'Hindi', ar: 'Arabic', nl: 'Dutch', pl: 'Polish', tr: 'Turkish',
+    sv: 'Swedish', da: 'Danish', no: 'Norwegian', fi: 'Finnish', ur: 'Urdu',
+  };
+  const region = full.split(/[-_]/)[1]?.toUpperCase();
+  return (names[base] || base.toUpperCase()) + (region ? ` (${region})` : '');
+}
+
 export function speak(text: string, onEnd?: () => void): void {
   try {
     const synth = window.speechSynthesis;
@@ -100,9 +147,14 @@ export function speak(text: string, onEnd?: () => void): void {
     const vs = loadVoiceSettings();
     u.rate = Math.min(2, Math.max(0.5, vs.rate || 1.05));
     u.pitch = Math.min(2, Math.max(0, vs.pitch ?? 1));
+    const all = synth.getVoices();
     if (vs.voiceURI) {
-      const v = synth.getVoices().find((x) => x.voiceURI === vs.voiceURI);
+      const v = all.find((x) => x.voiceURI === vs.voiceURI);
       if (v) u.voice = v;
+    } else {
+      // No explicit choice — use the best available voice, not the browser's arbitrary default.
+      const best = pickBestVoice(all);
+      if (best) u.voice = best;
     }
     if (onEnd) {
       let done = false;
