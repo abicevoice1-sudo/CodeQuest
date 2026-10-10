@@ -56,6 +56,26 @@ function cmdVisualize(dir, packRoot, flags) {
       res.writeHead(200, { 'Content-Type': MIME['.html'] });
       return res.end(html);
     }
+    // Read any file in the repo (for the in-UI code viewer). Traversal-safe.
+    if (urlPath === '/api/file') {
+      const rel = new URL(req.url || '/', 'http://x').searchParams.get('path') || '';
+      const root = path.resolve(dir);
+      const f = path.resolve(root, rel);
+      if (!rel || f === root || !f.startsWith(root + path.sep)) {
+        res.writeHead(403, { 'Content-Type': 'text/plain' });
+        return res.end('forbidden');
+      }
+      if (!fs.existsSync(f) || fs.statSync(f).isDirectory()) {
+        res.writeHead(404, { 'Content-Type': 'text/plain' });
+        return res.end('not found');
+      }
+      if (fs.statSync(f).size > 512 * 1024) {
+        res.writeHead(413, { 'Content-Type': 'text/plain' });
+        return res.end('file too large');
+      }
+      res.writeHead(200, { 'Content-Type': 'text/plain; charset=utf-8' });
+      return fs.createReadStream(f).pipe(res);
+    }
     const f = path.normalize(path.join(visDir, urlPath));
     if (!f.startsWith(visDir) || !fs.existsSync(f) || fs.statSync(f).isDirectory()) {
       res.writeHead(404, { 'Content-Type': 'text/plain' });

@@ -17,6 +17,10 @@ import '@xyflow/react/dist/style.css';
 import './index.css';
 import { layoutGraph, blastRadius, type CQNodeData } from './layout';
 import { RISK_COLORS, LAYER_COLORS, shortName, type CodeQuestGraph, type Risk } from './types';
+import { CodePanel, useFileCode } from './components/CodePanel';
+import { ExplainPanel } from './components/ExplainPanel';
+import { SettingsModal } from './components/SettingsModal';
+import { parseVoiceCommand, resolveTarget, speak, startListening, voiceSupported } from './lib/voice';
 
 /* ------------------------------------------------------------------ */
 /* Custom node                                                         */
@@ -81,8 +85,14 @@ export default function App() {
   const [error, setError] = useState('');
   const [dragOver, setDragOver] = useState(false);
   const [counts, setCounts] = useState({ shown: 0, hidden: 0 });
+  const [tab, setTab] = useState<'info' | 'code' | 'explain'>('info');
+  const [showSettings, setShowSettings] = useState(false);
+  const [listening, setListening] = useState(false);
+  const [voiceMsg, setVoiceMsg] = useState('');
+  const [explainKey, setExplainKey] = useState(0);
   const flowRef = useRef<any>(null); // eslint-disable-line @typescript-eslint/no-explicit-any
   const fileInput = useRef<HTMLInputElement>(null);
+  const stopListenRef = useRef<(() => void) | null>(null);
 
   const allLayers = useMemo(
     () => [...new Set((graph?.modules || []).map((m) => m.layer))].sort(),
@@ -144,6 +154,122 @@ export default function App() {
     [graph, selectedId],
   );
 
+  const { code: fileCode, loadError: fileLoadError } = useFileCode(selectedId);
+
+  // Reset to the info tab whenever a different module is selected.
+  useEffect(() => {
+    setTab('info');
+  }, [selectedId]);
+
+  const focusNode = useCallback((id: string) => {
+    setSelectedId(id);
+    if (flowRef.current) flowRef.current.fitView({ nodes: [{ id }], duration: 400, padding: 0.4 });
+  }, []);
+
+  const explainCtx = useMemo(
+    () =>
+      selected
+        ? {
+            path: selected.path,
+            layer: selected.layer,
+            risk: selected.risk,
+            lines: selected.lines,
+            imports: downstream.map((e) => e.to),
+            importedBy: upstream.map((e) => e.from),
+            exports: selected.exports,
+            code: fileCode || '',
+          }
+        : null,
+    [selected, downstream, upstream, fileCode],
+  );
+
+  const startBlast = useCallback(
+    (id: string) => {
+      if (!graph) return;
+      setBlast(blastRadius(graph, id));
+      setSelectedId(id);
+    },
+    [graph],
+  );
+
+  const doSearch = useCallback(() => {
+    if (!graph || !query.trim()) return;
+    const q = query.trim().toLowerCase();
+    const hit = nodes.find(
+      (n) => n.id.toLowerCase().includes(q) || (n.data.label as string).toLowerCase().includes(q),
+    );
+    if (hit && flowRef.current) {
+      setSelectedId(hit.id);
+      flowRef.current.fitView({ nodes: [{ id: hit.id }], duration: 400, padding: 0.4 });
+    }
+  }, [graph, query, nodes]);
+
+  /* ---------------- voice control ---------------- */
+  const handleVoice = useCallback(
+    (transcript: string) => {
+      setVoiceMsg(`🎙 “${transcript}”`);
+      const cmd = parseVoiceCommand(transcript);
+      const ids = graph?.modules.map((m) => m.id) || [];
+      if (cmd.kind === 'find') {
+        const q = cmd.query.toLowerCase();
+        const hits = ids.filter((id) => id.toLowerCase().includes(q));
+        if (hits.length) {
+          focusNode(hits[0]);
+          const msg = hits.length === 1 ? `Found ${hits[0]}` : `Found ${hits.length} files, showing ${hits[0]}`;
+          setVoiceMsg(msg);
+          speak(msg);
+        } else {
+          setVoiceMsg(`No files match “${cmd.query}”.`);
+          speak(`No files match ${cmd.query}.`);
+        }
+      } else if (cmd.kind === 'explain' || cmd.kind === 'blast') {
+        const id = cmd.target ? resolveTarget(cmd.target, ids) : selectedId;
+        if (!id) {
+          const msg = cmd.target ? `Couldn't find “${cmd.target}”.` : 'Select a file first, or name one.';
+          setVoiceMsg(msg);
+          speak(msg);
+          return;
+        }
+        focusNode(id);
+        if (cmd.kind === 'blast') {
+          startBlast(id);
+          setVoiceMsg(`Blast radius for ${shortName(id)}.`);
+          speak(`Showing blast radius for ${shortName(id)}.`);
+        } else {
+          setTab('explain');
+          setExplainKey((k) => k + 1);
+          setVoiceMsg(`Explaining ${shortName(id)}.`);
+          speak(`Explaining ${shortName(id)}.`);
+        }
+      } else if (cmd.kind === 'clear') {
+        setBlast(null);
+        setSelectedId(null);
+        setVoiceMsg('Cleared.');
+        speak('Cleared.');
+      } else {
+        const msg = `Try “find login”, “explain this file”, or “blast radius of auth”.`;
+        setVoiceMsg(msg);
+        speak(`I didn't catch that. ${msg}`);
+      }
+    },
+    [graph, selectedId, focusNode],
+  );
+
+  const toggleListen = useCallback(() => {
+    if (listening) {
+      stopListenRef.current?.();
+      setListening(false);
+      return;
+    }
+    setVoiceMsg('Listening… say “find login” or “explain this file”.');
+    setListening(true);
+    stopListenRef.current = startListening(
+      (t) => { setListening(false); handleVoice(t); },
+      () => setListening(false),
+      (msg) => { setListening(false); setVoiceMsg(msg); },
+    );
+  }, [listening, handleVoice]);
+
   // Blast-radius styling pass.
   useEffect(() => {
     if (!graph) return;
@@ -185,26 +311,6 @@ export default function App() {
     setSelectedId(node.id);
   }, []);
 
-  const startBlast = useCallback(
-    (id: string) => {
-      if (!graph) return;
-      setBlast(blastRadius(graph, id));
-      setSelectedId(id);
-    },
-    [graph],
-  );
-
-  const doSearch = useCallback(() => {
-    if (!graph || !query.trim()) return;
-    const q = query.trim().toLowerCase();
-    const hit = nodes.find(
-      (n) => n.id.toLowerCase().includes(q) || (n.data.label as string).toLowerCase().includes(q),
-    );
-    if (hit && flowRef.current) {
-      setSelectedId(hit.id);
-      flowRef.current.fitView({ nodes: [{ id: hit.id }], duration: 400, padding: 0.4 });
-    }
-  }, [graph, query, nodes]);
 
   const toggleIn = (set: Set<string>, v: string, apply: (s: Set<string>) => void) => {
     const next = new Set(set);
@@ -306,6 +412,16 @@ export default function App() {
           />
         </div>
         <button className="ghost small" onClick={() => fileInput.current?.click()}>Load another</button>
+        {voiceSupported() && (
+          <button
+            className={`ghost small${listening ? ' listening' : ''}`}
+            onClick={toggleListen}
+            title='Voice: "find login", "explain this file", "blast radius of auth"'
+          >
+            {listening ? '⏹ Listening…' : '🎙 Voice'}
+          </button>
+        )}
+        <button className="ghost small" onClick={() => setShowSettings(true)} title="AI settings">⚙</button>
         <input
           ref={fileInput}
           type="file"
@@ -421,6 +537,23 @@ export default function App() {
             <section className="detail">
               <h3 title={selected.path}>{shortName(selected.path)}</h3>
               <div className="detail-path">{selected.path}</div>
+              <div className="detail-tabs">
+                {(['info', 'code', 'explain'] as const).map((t) => (
+                  <button key={t} className={tab === t ? 'on' : ''} onClick={() => setTab(t)}>
+                    {t === 'info' ? 'Info' : t === 'code' ? '</> Code' : '✨ Explain'}
+                  </button>
+                ))}
+              </div>
+              {tab === 'code' ? (
+                <CodePanel path={selected.id} code={fileCode} loadError={fileLoadError} />
+              ) : tab === 'explain' ? (
+                explainCtx ? (
+                  <ExplainPanel ctx={explainCtx} autoRunKey={explainKey} onNeedSettings={() => setShowSettings(true)} />
+                ) : (
+                  <div className="code-hint">Select a file first.</div>
+                )
+              ) : (
+              <>
               <div className="detail-meta">
                 <span className="risk-badge" style={{ background: RISK_COLORS[selected.risk || 'LOW'] }}>
                   {selected.risk || 'LOW'}
@@ -479,6 +612,8 @@ export default function App() {
                   </div>
                 </>
               )}
+              </>
+              )}
             </section>
           ) : (
             <section className="hint">
@@ -500,6 +635,8 @@ export default function App() {
         </aside>
       </div>
       {error && <div className="toast">{error}</div>}
+      {voiceMsg && <div className="toast voice">{voiceMsg}</div>}
+      {showSettings && <SettingsModal onClose={() => setShowSettings(false)} />}
     </div>
   );
 }

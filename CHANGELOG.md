@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.3.0 — 2026-10-10
+- Visualizer is now a real code explorer: click any module → **Code** tab shows its source with syntax highlighting, served live from your repo.
+- **AI file explanations**: ✨ Explain tab calls any OpenAI-compatible LLM with your own key (Settings ⚙, stored only in your browser).
+- **Voice control** 🎙 (Chrome/Edge): "find login", "explain this file", "blast radius of auth" — spoken answers included.
+- `visualize`/`start` server gained a traversal-safe `/api/file` endpoint.
+- Tests: 22/22 (analyzer), 16/16 (visualizer) green.
+
 ## 1.2.1 — 2026-10-10
 - Visualizer: proper page title ("CodeQuest — Repo Graph"); empty state leads with the `npx codequest-ai start` command instead of a bare file upload.
 

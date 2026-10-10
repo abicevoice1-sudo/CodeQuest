@@ -313,3 +313,34 @@ test('start: runs setup then serves the visualizer (json mode)', async () => {
   assert.ok(page.body.includes('window.__CODEQUEST_GRAPH__'), 'graph injected into page');
   child.kill('SIGTERM');
 });
+
+test('visualize /api/file serves repo files, blocks traversal', async () => {
+  const { spawn } = require('node:child_process');
+  const d = tmp(); cpdir(FIX_EDGE, d);
+  fs.writeFileSync(path.join(d, 'hello.js'), 'const greeting = "hi";\n');
+  const child = spawn(process.execPath, [BIN, 'visualize', d, '--json'], { stdio: ['ignore', 'pipe', 'pipe'] });
+  let buf = '';
+  const url = await new Promise((resolve, reject) => {
+    const to = setTimeout(() => reject(new Error('no url emitted')), 20000);
+    child.stdout.on('data', (c) => {
+      buf += c.toString();
+      const m = buf.match(/\{"url":"(http:\/\/127\.0\.0\.1:1337)"\}/);
+      if (m) { clearTimeout(to); resolve(m[1]); }
+    });
+    child.on('error', reject);
+  });
+  assert.equal(url, 'http://127.0.0.1:1337', 'pinned port');
+  const get = (p) => new Promise((resolve, reject) => {
+    require('node:http').get(url + p, (res) => {
+      let b = ''; res.on('data', (c) => b += c); res.on('end', () => resolve({ status: res.statusCode, body: b }));
+    }).on('error', reject);
+  });
+  const ok = await get('/api/file?path=' + encodeURIComponent('hello.js'));
+  assert.equal(ok.status, 200, 'serves repo file');
+  assert.ok(ok.body.includes('const greeting'), 'file content returned');
+  const trav = await get('/api/file?path=' + encodeURIComponent('../../etc/passwd'));
+  assert.equal(trav.status, 403, 'path traversal blocked');
+  const missing = await get('/api/file?path=' + encodeURIComponent('nope.js'));
+  assert.equal(missing.status, 404, 'missing file 404s');
+  child.kill('SIGTERM');
+});
