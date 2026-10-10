@@ -81,4 +81,13 @@ function buildPage(visDir, graph) {
     .replace('</head>', `<script>window.__CODEQUEST_GRAPH__=${safe};</script>\n</head>`);
 }
 
-module.exports = { cmdVisualize, buildPage };
+function cmdStart(dir, packRoot, asJson, flags) {
+  // The super-easy one: scan the repo, configure the IDE, open the visualizer.
+  const { cmdSetup } = require('./setup');
+  if (!asJson) out('codequest: setting things up…');
+  cmdSetup(dir, packRoot, asJson, flags);
+  if (!asJson) out('');
+  cmdVisualize(dir, packRoot, flags);
+}
+
+module.exports = { cmdVisualize, cmdStart, buildPage };

@@ -12,7 +12,7 @@ const { fail, out } = require('../lib/util');
 const { buildGraph, runTreeSitterExtract } = require('../lib/scan');
 const { cmdDiff, cmdHistory, cmdTrends, cmdBlastRadius, cmdStory, repoMapMd, riskTag } = require('../lib/commands');
 const { cmdSetup } = require('../lib/setup');
-const { cmdVisualize } = require('../lib/serve');
+const { cmdVisualize, cmdStart } = require('../lib/serve');
 const { VERSION } = require('../lib/scan');
 
 function main() {
@@ -53,6 +53,7 @@ function main() {
       '  setup [dir]                detect local IDEs/AI assistants and configure each one',
       '  history [dir]              record a drift snapshot (.codequest/history.jsonl)',
       '  trends [dir]               show drift history over time',
+      '  start [dir]                the easy one: scan + set up your IDE + open the visualizer',
       '  visualize [dir]            scan + open the interactive graph in your browser',
       '',
       'Add --json for machine-readable output.',
@@ -146,6 +147,10 @@ function main() {
   if (cmd === 'visualize') {
     const packDir = path.join(__dirname, '..'); // codequest/bin/codequest → codequest/
     return cmdVisualize(dirOf(1), packDir, flags);
+  }
+  if (cmd === 'start') {
+    const packDir = path.join(__dirname, '..'); // codequest/bin/codequest → codequest/
+    return cmdStart(dirOf(1), packDir, asJson, flags);
   }
   return fail(`unknown command "${cmd}" — try --help`, asJson);
 }

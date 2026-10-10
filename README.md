@@ -37,7 +37,11 @@ cd /path/to/your-repo && ./codequest/bin/codequest scan
 ```
 
 # Then, with either option:
-codequest visualize              # scan + open the interactive graph in your browser
+codequest start                  # the easy one: scan + set up your IDE + open the graph in your browser
+
+# Or step by step:
+codequest scan && codequest map  # terminal: build the graph, print the repo map
+codequest visualize              # just the browser graph
 ./codequest/bin/codequest setup   # auto-configure your IDEs (VS Code, Cursor, Windsurf, Zed, …)
 
 # Optional: set your audience (beginner/professional/expert, business lens)

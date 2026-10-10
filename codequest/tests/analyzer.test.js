@@ -282,3 +282,32 @@ test('visualize injects the scanned graph into the served page', () => {
   const evil = buildPage(visDir, { x: '</script><script>alert(1)</script>' });
   assert.ok(!evil.includes('</script><script>alert'), 'angle brackets escaped');
 });
+
+test('start: runs setup then serves the visualizer (json mode)', async () => {
+  const { spawn } = require('node:child_process');
+  const d = tmp(); cpdir(FIX_EDGE, d);
+  const child = spawn(process.execPath, [BIN, 'start', d, '--json'], { stdio: ['ignore', 'pipe', 'pipe'] });
+  let buf = '';
+  const url = await new Promise((resolve, reject) => {
+    const to = setTimeout(() => reject(new Error('no url emitted')), 20000);
+    child.stdout.on('data', (c) => {
+      buf += c.toString();
+      const m = buf.match(/\{"url":"(http:\/\/127\.0\.0\.1:\d+)"\}/);
+      if (m) { clearTimeout(to); resolve(m[1]); }
+    });
+    child.on('error', reject);
+  });
+  assert.ok(/^http:\/\/127\.0\.0\.1:\d+$/.test(url), 'visualize url emitted');
+  assert.ok(buf.includes('"written"'), 'setup json emitted');
+  assert.ok(fs.existsSync(path.join(d, '.codequest', 'graph.json')), 'graph written');
+  assert.ok(fs.existsSync(path.join(d, 'AGENTS.md')), 'AGENTS.md written by setup');
+  // the served page boots straight into this repo's graph
+  const page = await new Promise((resolve, reject) => {
+    require('node:http').get(url + '/', (res) => {
+      let b = ''; res.on('data', (c) => b += c); res.on('end', () => resolve({ status: res.statusCode, body: b }));
+    }).on('error', reject);
+  });
+  assert.equal(page.status, 200, 'visualizer page served');
+  assert.ok(page.body.includes('window.__CODEQUEST_GRAPH__'), 'graph injected into page');
+  child.kill('SIGTERM');
+});
