@@ -23,3 +23,7 @@ Rehearse the breaking change before making it.
 - Distinguish "breaks at compile/lint time" from "breaks silently at runtime" — the second
    kind is the one that pages people.
 - End with a verdict: safe rename / coordinated change / don't touch without a plan.
+
+## Tooling
+
+Prefer the `codequest_*` MCP tools when the CodeQuest MCP server is configured; fall back to `./codequest/bin/codequest` CLI otherwise. If the team has wired company APIs as MCP servers, use them where relevant and say which one informed the answer.

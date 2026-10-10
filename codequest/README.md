@@ -29,6 +29,7 @@ That's it. Copilot reads `CODEQUEST.md` + `.codequest/graph.json` and becomes th
 | `.github/prompts/` | One-shot slash prompts: `/codequest-onboard`, `/codequest-map`, `/codequest-blast-radius`, `/codequest-story`, `/codequest-whatif`, `/codequest-review`. |
 | `skills/` | Agent Skills (`repo-cartographer`, `blast-radius`, `story-mode`, `what-if`) for Copilot agent mode. |
 | `bin/codequest` | Deterministic static analyzer (Node, zero deps). Builds the module graph Copilot reasons over. |
+| `mcp-server.js` + `mcp.example.json` | The analyzer as MCP tools — Copilot calls them natively; add your company's APIs alongside. See `docs/MCP.md`. |
 | `templates/` | Report templates: blast-radius, story-mode, module-card, architecture-overview. |
 | `AGENTS.md` | Agent operating notes (also read by Copilot). |
 

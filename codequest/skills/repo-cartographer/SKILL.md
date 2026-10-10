@@ -26,3 +26,7 @@ Turn a raw repository into a CodeQuest architecture map.
 - Every edge in the map must exist in `.codequest/graph.json` or in code you read yourself.
 - Every module reference carries `file:line`.
 - End with the one architectural fact a new tech lead must know.
+
+## Tooling
+
+Prefer the `codequest_*` MCP tools when the CodeQuest MCP server is configured; fall back to `./codequest/bin/codequest` CLI otherwise. If the team has wired company APIs as MCP servers, use them where relevant and say which one informed the answer.

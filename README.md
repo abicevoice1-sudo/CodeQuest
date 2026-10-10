@@ -44,6 +44,12 @@ CodeQuest AI: grounded in a computed module graph, incapable of hallucinating yo
 4. **Instructions.** `codequest/.github/muse-instructions.md` auto-loads the CodeQuest boot
    sequence; `codequest/.github/instructions/` enforces the analysis + formatting rules on
    every file Copilot touches.
+5. **MCP: Copilot-native tools + any API.** `codequest/mcp-server.js` exposes the analyzer
+   as five MCP tools (`codequest_scan`, `codequest_blast_radius`, …) — copy
+   `codequest/mcp.example.json` to your repo's `.vscode/mcp.json` and Copilot calls them
+   natively. Your company can add its own API MCP servers (ticketing, docs, internal
+   search) alongside — the agent mixes the repo graph with any API you plug in.
+   Full guide: `docs/MCP.md`.
 
 ## What's in the pack
 
@@ -52,8 +58,11 @@ codequest/
 ├── CODEQUEST.md              # the master system prompt — the brain
 ├── AGENTS.md                 # agent operating notes
 ├── README.md                 # drop-in quickstart
+├── mcp-server.js             # the analyzer as MCP tools (Copilot calls them natively)
+├── mcp.example.json          # MCP wiring: codequest + any API your company plugs in
 ├── .github/
 │   ├── muse-instructions.md# auto-loaded Copilot instructions
+│   ├── agents/               # custom agent: codequest.agent.md (CodeQuest Core AI)
 │   ├── instructions/         # analysis + formatting rules (always applied)
 │   └── prompts/              # /codequest-onboard, -map, -blast-radius, -story, -whatif, -review
 ├── skills/                   # Agent Skills: repo-cartographer, blast-radius, story-mode, what-if

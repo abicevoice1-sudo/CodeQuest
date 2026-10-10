@@ -25,3 +25,7 @@ Narrate how a feature actually executes, file by file.
 - Narration script: one short spoken-style caption per step, onboarding-audio ready.
 - Call out what the trace reveals: unhandled errors, missing auth, N+1-shaped loops
    (verify each by reading before claiming).
+
+## Tooling
+
+Prefer the `codequest_*` MCP tools when the CodeQuest MCP server is configured; fall back to `./codequest/bin/codequest` CLI otherwise. If the team has wired company APIs as MCP servers, use them where relevant and say which one informed the answer.

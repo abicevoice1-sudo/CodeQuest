@@ -20,9 +20,20 @@ This repository contains a CodeQuest drop-in (`codequest/`). When working here, 
 - `/codequest-whatif` — breaking-change simulation for a signature edit
 - `/codequest-review` — CodeQuest-style PR review (blast radius + risk per file)
 
-## Available skills (agent mode)
+## Available agents & skills (agent mode)
 
-`repo-cartographer` · `blast-radius` · `story-mode` · `what-if` — see `codequest/skills/`.
+- Custom agent: `codequest/.github/agents/codequest.agent.md` (CodeQuest Core AI persona).
+- Skills: `repo-cartographer` · `blast-radius` · `story-mode` · `what-if` — see `codequest/skills/`.
+
+## MCP tools (any API the team plugs in)
+
+- CodeQuest ships its own MCP server (`codequest/mcp-server.js`): `codequest_scan`,
+  `codequest_map`, `codequest_modules`, `codequest_blast_radius`, `codequest_story`.
+  Wire it via `codequest/mcp.example.json` → repo `.vscode/mcp.json`.
+- Prefer these MCP tools over shelling out to `bin/codequest` when configured.
+- If the team adds company API MCP servers (ticketing, docs, internal search…), use them
+  where relevant and name the tool that informed the answer. See `docs/MCP.md`.
+- If MCP is disabled by policy, everything still works via the `bin/codequest` CLI.
 
 ## Output rules
 

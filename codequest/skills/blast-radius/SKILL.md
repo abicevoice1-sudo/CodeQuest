@@ -24,3 +24,7 @@ Impact analysis for a proposed change, computed — not guessed.
 - Upstream = what the target imports (with `file:line`). Downstream = what imports the target.
 - A risk claim without a downstream count is not a risk claim.
 - End with a one-line verdict: ship it / ship with tests / stop and refactor first.
+
+## Tooling
+
+Prefer the `codequest_*` MCP tools when the CodeQuest MCP server is configured; fall back to `./codequest/bin/codequest` CLI otherwise. If the team has wired company APIs as MCP servers, use them where relevant and say which one informed the answer.
