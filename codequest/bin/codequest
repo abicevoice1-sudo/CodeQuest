@@ -1,0 +1,454 @@
+#!/usr/bin/env node
+/**
+ * codequest — deterministic static analyzer for the CodeQuest drop-in.
+ * Zero dependencies. Node 18+. Fully offline. Never touches the network.
+ *
+ *   scan [dir]              build .codequest/graph.json + .codequest/repo-map.md
+ *   map [dir]               print the repo map
+ *   modules [dir]           list modules + exports
+ *   blast-radius <file> [dir]   impact matrix for a module (accepts partial path)
+ *   story <entry> [dir]     static execution trace from an entry point
+ *
+ * Add --json to any command for machine-readable output.
+ */
+'use strict';
+
+const fs = require('fs');
+const path = require('path');
+
+const VERSION = '1.0.0';
+const SKIP_DIRS = new Set(['node_modules', '.git', 'dist', 'build', 'coverage', '.next',
+  'vendor', '__pycache__', '.venv', 'venv', 'target', '.codequest', '.idea', '.vscode']);
+const EXT_LANG = {
+  '.js': 'javascript', '.jsx': 'javascript', '.mjs': 'javascript', '.cjs': 'javascript',
+  '.ts': 'typescript', '.tsx': 'typescript',
+  '.py': 'python', '.go': 'go', '.java': 'java', '.rb': 'ruby', '.php': 'php',
+};
+const MAX_FILE_BYTES = 512 * 1024;
+
+// ---------------------------------------------------------------- walking ---
+
+function walk(dir, root, out) {
+  out = out || [];
+  let entries;
+  try { entries = fs.readdirSync(dir, { withFileTypes: true }); } catch { return out; }
+  for (const e of entries) {
+    if (e.name.startsWith('.') && e.name !== '.github') {
+      if (SKIP_DIRS.has(e.name)) continue;
+    }
+    if (SKIP_DIRS.has(e.name)) continue;
+    const full = path.join(dir, e.name);
+    if (e.isDirectory()) walk(full, root, out);
+    else if (e.isFile()) {
+      const ext = path.extname(e.name).toLowerCase();
+      if (!EXT_LANG[ext]) continue;
+      try {
+        const st = fs.statSync(full);
+        if (st.size > MAX_FILE_BYTES) continue;
+      } catch { continue; }
+      out.push(path.relative(root, full));
+    }
+  }
+  return out.sort();
+}
+
+// --------------------------------------------------------------- parsing ---
+
+function parseJS(lines) {
+  const imports = [], exports = [];
+  const reImportFrom = /^\s*import\s+(?:[^'"]*?\s+from\s+)?['"]([^'"]+)['"]/;
+  const reExportFrom = /^\s*export\s+(?:[^'"]*?\s+from\s+)['"]([^'"]+)['"]/;
+  const reRequire = /(?:^|[^.\w$])require\s*\(\s*['"]([^'"]+)['"]\s*\)/;
+  const reDynImport = /(?:^|[^.\w$])import\s*\(\s*['"]([^'"]+)['"]\s*\)/;
+  const reExportDecl = /^\s*export\s+(?:default\s+)?(?:async\s+)?(?:function|class|const|let|var)\s+([A-Za-z_$][\w$]*)/;
+  const reExportList = /^\s*export\s*\{([^}]*)\}/;
+  const reModuleExports = /^\s*(?:module\.exports|exports)(?:\.([A-Za-z_$][\w$]*))?\s*=/;
+  lines.forEach((ln, i) => {
+    const line = i + 1;
+    let m;
+    if ((m = ln.match(reImportFrom))) imports.push({ raw: m[1], line });
+    else if ((m = ln.match(reExportFrom))) { imports.push({ raw: m[1], line }); }
+    else if ((m = ln.match(reRequire))) imports.push({ raw: m[1], line });
+    else if ((m = ln.match(reDynImport))) imports.push({ raw: m[1], line });
+    if ((m = ln.match(reExportDecl))) exports.push(m[1]);
+    else if ((m = ln.match(reExportList))) {
+      m[1].split(',').forEach(s => {
+        const name = s.trim().split(/\s+as\s+/).pop().trim();
+        if (/^[A-Za-z_$][\w$]*$/.test(name)) exports.push(name);
+      });
+    } else if ((m = ln.match(reModuleExports))) exports.push(m[1] || 'module.exports');
+  });
+  return { imports, exports };
+}
+
+function parsePy(lines) {
+  const imports = [], exports = [];
+  const reImp = /^\s*import\s+([a-zA-Z_][\w.]*(?:\s*,\s*[a-zA-Z_][\w.]*)*)/;
+  const reFrom = /^\s*from\s+([a-zA-Z_][\w.]*)\s+import\s+(.+)/;
+  const reDef = /^\s*(?:def|class)\s+([A-Za-z_]\w*)/;
+  lines.forEach((ln, i) => {
+    const line = i + 1;
+    let m;
+    if ((m = ln.match(reImp))) {
+      m[1].split(',').forEach(s => imports.push({ raw: s.trim().split(/\s+as\s+/)[0].trim(), line }));
+    } else if ((m = ln.match(reFrom))) {
+      imports.push({ raw: m[1].trim(), line, names: m[2].trim() });
+    } else if ((m = ln.match(reDef)) && !ln.startsWith(' ') && !ln.startsWith('\t')) {
+      exports.push(m[1]);
+    }
+  });
+  return { imports, exports };
+}
+
+function parseGo(lines) {
+  const imports = [], exports = [];
+  const reSingle = /^\s*import\s+(?:[\w.]+\s+)?"([^"]+)"/;
+  const reBlockItem = /^\s*(?:[\w.]+\s+)?"([^"]+)"\s*$/;
+  const reFunc = /^\s*func\s+(?:\([^)]*\)\s+)?([A-Z][\w]*)\s*\(/;
+  let inBlock = false;
+  lines.forEach((ln, i) => {
+    const line = i + 1;
+    let m;
+    if (/^\s*import\s*\($/.test(ln)) { inBlock = true; return; }
+    if (inBlock && /^\s*\)/.test(ln)) { inBlock = false; return; }
+    if (inBlock && (m = ln.match(reBlockItem))) { imports.push({ raw: m[1], line }); return; }
+    if ((m = ln.match(reSingle))) imports.push({ raw: m[1], line });
+    else if ((m = ln.match(reFunc))) exports.push(m[1]);
+  });
+  return { imports, exports };
+}
+
+function parseJava(lines) {
+  const imports = [], exports = [];
+  const reImp = /^\s*import\s+(?:static\s+)?([\w.]+)(?:\.\*)?;/;
+  const reClass = /^\s*(?:public\s+)?(?:final\s+)?(?:class|interface|enum)\s+([A-Za-z_]\w*)/;
+  lines.forEach((ln, i) => {
+    const line = i + 1;
+    let m;
+    if ((m = ln.match(reImp))) imports.push({ raw: m[1], line });
+    else if ((m = ln.match(reClass))) exports.push(m[1]);
+  });
+  return { imports, exports };
+}
+
+const PARSERS = { javascript: parseJS, typescript: parseJS, python: parsePy, go: parseGo, java: parseJava };
+
+// ------------------------------------------------------------- resolving ---
+
+const CANDIDATE_EXTS = ['', '.js', '.jsx', '.ts', '.tsx', '.mjs', '.cjs', '.py', '.go', '.java', '.rb', '.php'];
+
+function tryFile(root, p) {
+  for (const ext of CANDIDATE_EXTS) {
+    const c = p + ext;
+    try { if (fs.statSync(path.join(root, c)).isFile()) return c; } catch {}
+  }
+  for (const ext of CANDIDATE_EXTS.slice(1)) {
+    const c = path.join(p, 'index' + ext);
+    try { if (fs.statSync(path.join(root, c)).isFile()) return c; } catch {}
+  }
+  return null;
+}
+
+function resolveImport(root, fromRel, raw, lang) {
+  if (raw.startsWith('.')) {
+    const base = path.normalize(path.join(path.dirname(fromRel), raw));
+    return tryFile(root, base);
+  }
+  if (lang === 'python' && /^[a-zA-Z_][\w.]*$/.test(raw)) {
+    // absolute python import: try foo/bar.py, foo/bar/__init__.py (from root,
+    // then relative to the importing file for sibling-style imports)
+    const base = raw.replace(/\./g, '/');
+    return tryFile(root, base) || tryFile(root, path.join(base, '__init__')) ||
+      tryFile(root, path.join(path.dirname(fromRel), base));
+  }
+  return null; // external / bare import
+}
+
+// ----------------------------------------------------------------- graph ---
+
+function guessLayer(rel, isEntry, isTest) {
+  const p = rel.toLowerCase();
+  if (isTest) return 'Test';
+  if (isEntry) return 'Entry';
+  if (/middleware/.test(p)) return 'Middleware';
+  if (/(^|\/)(routes?|router|controllers?|handlers?|api)(\/|$)/.test(p)) return 'API Route';
+  if (/(^|\/)(services?|lib)(\/|$)/.test(p)) return 'Service';
+  if (/(^|\/)(models?|schemas?|entities)(\/|$)/.test(p)) return 'Model/Schema';
+  if (/(^|\/)(db|database|repositories?|dao)(\/|$)/.test(p)) return 'Data Access';
+  if (/(^|\/)(components?|views?|pages?|ui)(\/|$)/.test(p)) return 'UI Component';
+  if (/(^|\/)(store|state|context|redux)(\/|$)/.test(p)) return 'State';
+  if (/(^|\/)(utils?|helpers?|common|shared)(\/|$)/.test(p)) return 'Shared Utility';
+  if (/(^|\/)(config|settings)(\/|$)/.test(p)) return 'Config';
+  if (/(^|\/)(scripts?|bin|tools)(\/|$)/.test(p)) return 'Script';
+  return 'Domain';
+}
+
+function isTestFile(rel) {
+  const p = rel.toLowerCase();
+  return p.includes('__tests__') || /(^|\/)(test|tests)(\/|$)/.test(p) ||
+    /\.(test|spec)\.[a-z]+$/.test(p) || /(^|\/)test_[^/]*\.py$/.test(p) ||
+    /_test\.go$/.test(p);
+}
+
+function detectEntry(content, lang) {
+  if (lang === 'javascript' || lang === 'typescript') {
+    return /app\.(get|post|put|patch|delete|use|listen)\s*\(/.test(content) ||
+      /createServer\s*\(/.test(content) || /program\.(command|parse)\s*\(/.test(content);
+  }
+  if (lang === 'python') return /if\s+__name__\s*==\s*['"]__main__['"]/.test(content);
+  if (lang === 'go') return /^\s*func\s+main\s*\(/m.test(content);
+  if (lang === 'java') return /public\s+static\s+void\s+main\s*\(/.test(content);
+  return false;
+}
+
+function buildGraph(root) {
+  const files = walk(root, root);
+  const modules = new Map();
+  for (const rel of files) {
+    const ext = path.extname(rel).toLowerCase();
+    const lang = EXT_LANG[ext];
+    const full = path.join(root, rel);
+    const content = fs.readFileSync(full, 'utf8');
+    const lines = content.split('\n');
+    const parser = PARSERS[lang] || (() => ({ imports: [], exports: [] }));
+    const { imports, exports } = parser(lines);
+    const test = isTestFile(rel);
+    const entry = !test && detectEntry(content, lang);
+    modules.set(rel, {
+      id: rel, path: rel, lang, lines: lines.length,
+      exports, isTest: test, isEntry: entry,
+      layer: guessLayer(rel, entry, test),
+      imports: imports.map(im => ({
+        raw: im.raw, line: im.line,
+        resolved: resolveImport(root, rel, im.raw, lang),
+      })),
+      fanIn: 0, fanOut: 0,
+    });
+  }
+  const edges = [];
+  for (const m of modules.values()) {
+    const seen = new Set();
+    for (const im of m.imports) {
+      if (im.resolved && modules.has(im.resolved) && im.resolved !== m.id && !seen.has(im.resolved)) {
+        seen.add(im.resolved);
+        edges.push({ from: m.id, to: im.resolved, line: im.line });
+        m.fanOut++;
+        modules.get(im.resolved).fanIn++;
+      }
+    }
+  }
+  // risk: heuristic, documented
+  for (const m of modules.values()) {
+    let risk = 'LOW';
+    if (m.fanIn >= 8) risk = 'CRITICAL';
+    else if (m.fanIn >= 4) risk = 'HIGH';
+    else if (m.fanIn >= 2) risk = 'MEDIUM';
+    m.risk = m.isTest ? 'LOW' : risk;
+  }
+  return {
+    version: VERSION, root: path.resolve(root), generatedAt: new Date().toISOString(),
+    modules: [...modules.values()], edges,
+  };
+}
+
+// --------------------------------------------------------------- commands ---
+
+function dependentsOf(g, id, maxDepth) {
+  const byTarget = new Map();
+  for (const e of g.edges) {
+    if (!byTarget.has(e.to)) byTarget.set(e.to, []);
+    byTarget.get(e.to).push(e);
+  }
+  const levels = []; const seen = new Set([id]);
+  let frontier = [id];
+  for (let d = 1; d <= maxDepth; d++) {
+    const next = [];
+    for (const cur of frontier) {
+      for (const e of (byTarget.get(cur) || [])) {
+        if (!seen.has(e.from)) { seen.add(e.from); next.push(e.from); }
+      }
+    }
+    if (!next.length) break;
+    levels.push(next); frontier = next;
+  }
+  return levels;
+}
+
+function findModule(g, query) {
+  const q = query.toLowerCase();
+  const exact = g.modules.find(m => m.id.toLowerCase() === q);
+  if (exact) return exact;
+  const hits = g.modules.filter(m => m.id.toLowerCase().includes(q));
+  if (hits.length === 1) return hits[0];
+  if (!hits.length) return null;
+  return { ambiguous: hits.map(h => h.id) };
+}
+
+function modById(g, id) { return g.modules.find(m => m.id === id); }
+
+function cmdBlastRadius(g, target, asJson) {
+  const mod = findModule(g, target);
+  if (!mod) return fail(`No module matching "${target}"`, asJson);
+  if (mod.ambiguous) return fail(`Ambiguous — matches:\n  ${mod.ambiguous.join('\n  ')}`, asJson);
+  const upstream = mod.imports.filter(i => i.resolved && modById(g, i.resolved))
+    .map(i => ({ file: i.resolved, line: i.line }));
+  const levels = dependentsOf(g, mod.id, 3);
+  const allDown = levels.flat();
+  const tests = allDown.map(id => modById(g, id)).filter(m => m && m.isTest).map(m => m.id);
+  const result = {
+    module: mod.id, layer: mod.layer, risk: mod.risk,
+    fanIn: mod.fanIn, fanOut: mod.fanOut,
+    upstream,
+    downstream: levels.map((ids, i) => ({ degree: i + 1, modules: ids })),
+    affectedTests: tests,
+  };
+  if (asJson) return out(JSON.stringify(result, null, 2));
+  const L = [];
+  L.push(`# Blast radius — ${mod.id}`);
+  L.push(`Layer: ${mod.layer}   Risk: [${mod.risk} RISK]   fan-in ${mod.fanIn} / fan-out ${mod.fanOut}`);
+  L.push('');
+  L.push('## Upstream (what this module imports)');
+  L.push(upstream.length ? upstream.map(u => `- ${u.file}:${u.line}`).join('\n') : '- (none — leaf or external-only)');
+  levels.forEach((ids, i) => {
+    L.push('');
+    L.push(`## ${['1st','2nd','3rd'][i]}-degree downstream (${ids.length} module${ids.length === 1 ? '' : 's'})`);
+    L.push(ids.map(id => `- ${id}`).join('\n'));
+  });
+  L.push('');
+  L.push('## Affected tests');
+  L.push(tests.length ? tests.map(t => `- ${t}`).join('\n') : '- (none found — coverage gap)');
+  L.push('');
+  L.push(`## Flow\n[${mod.id}]`);
+  if (levels[0]) levels[0].slice(0, 8).forEach(id => L.push(`   ↑ imported by ${id}`));
+  return out(L.join('\n'));
+}
+
+function cmdStory(g, entryQ, asJson) {
+  const mod = findModule(g, entryQ);
+  if (!mod) return fail(`No module matching "${entryQ}"`, asJson);
+  if (mod.ambiguous) return fail(`Ambiguous — matches:\n  ${mod.ambiguous.join('\n  ')}`, asJson);
+  const steps = []; const visited = new Set();
+  const queue = [{ id: mod.id, via: null }];
+  while (queue.length && steps.length < 30) {
+    const cur = queue.shift();
+    if (visited.has(cur.id)) continue;
+    visited.add(cur.id);
+    const m = modById(g, cur.id);
+    steps.push({ n: steps.length + 1, file: m.id, via: cur.via, layer: m.layer });
+    for (const im of m.imports) {
+      if (im.resolved && modById(g, im.resolved) && !visited.has(im.resolved)) {
+        queue.push({ id: im.resolved, via: { from: m.id, line: im.line } });
+      }
+    }
+  }
+  if (asJson) return out(JSON.stringify({ entry: mod.id, steps, note: 'static dependency trace' }, null, 2));
+  const L = [`# Story — static dependency trace from ${mod.id}`, ''];
+  for (const s of steps) {
+    const via = s.via ? `  (via ${s.via.from}:${s.via.line})` : '  (entry point)';
+    L.push(`${s.n}. [${s.layer}] ${s.file}${via}`);
+  }
+  L.push('', '_Static dependency trace — data flow inferred from imports, not observed at runtime._');
+  return out(L.join('\n'));
+}
+
+function riskTag(r) { return `[${r} RISK]`; }
+
+function repoMapMd(g) {
+  const L = [];
+  const langs = {};
+  g.modules.forEach(m => { langs[m.lang] = (langs[m.lang] || 0) + 1; });
+  const central = [...g.modules].sort((a, b) => b.fanIn - a.fanIn).slice(0, 10);
+  const entries = g.modules.filter(m => m.isEntry);
+  L.push(`# CodeQuest repo map`, '');
+  L.push(`- Modules: ${g.modules.length}   Edges: ${g.edges.length}`);
+  L.push(`- Languages: ${Object.entries(langs).map(([k, v]) => `${k} (${v})`).join(', ')}`);
+  L.push(`- Generated: ${g.generatedAt} (codequest ${g.version}, deterministic static scan)`, '');
+  L.push('## Entry points');
+  L.push(entries.length ? entries.map(m => `- ${m.id} (${m.lang})`).join('\n') : '- (none detected)');
+  L.push('', '## Most central modules (by dependents)');
+  L.push('| Module | Layer | Dependents | Risk |');
+  L.push('|---|---|---|---|');
+  central.forEach(m => L.push(`| ${m.id} | ${m.layer} | ${m.fanIn} | ${riskTag(m.risk)} |`));
+  L.push('', '## All modules');
+  L.push('| Module | Lang | Layer | Exports | In/Out | Risk |');
+  L.push('|---|---|---|---|---|---|');
+  g.modules.forEach(m => L.push(`| ${m.id} | ${m.lang} | ${m.layer} | ${m.exports.length} | ${m.fanIn}/${m.fanOut} | ${riskTag(m.risk)} |`));
+  return L.join('\n');
+}
+
+function fail(msg, asJson) {
+  if (asJson) return out(JSON.stringify({ error: msg }));
+  console.error('codequest: ' + msg);
+  process.exitCode = 1;
+}
+function out(s) { console.log(s); }
+
+// ------------------------------------------------------------------ main ---
+
+function main() {
+  const rawArgs = process.argv.slice(2);
+  const asJson = rawArgs.includes('--json');
+  const args = rawArgs.filter(a => a !== '--json');
+  const cmd = args[0];
+
+  if (!cmd || cmd === '--help' || cmd === '-h' || cmd === 'help') {
+    return out([
+      'codequest — deterministic static analyzer (offline, zero deps)',
+      '',
+      '  scan [dir]               build .codequest/graph.json + repo-map.md',
+      '  map [dir]                print the repo map',
+      '  modules [dir]            list modules + exports',
+      '  blast-radius <file> [dir]',
+      '  story <entry-file> [dir]',
+      '',
+      'Add --json for machine-readable output.',
+    ].join('\n'));
+  }
+
+  const dirOf = (i) => path.resolve(args[i] || '.');
+  const loadGraph = (dir) => {
+    const p = path.join(dir, '.codequest', 'graph.json');
+    if (!fs.existsSync(p)) {
+      console.error('codequest: no .codequest/graph.json — run `codequest scan` first.');
+      process.exit(1);
+    }
+    return JSON.parse(fs.readFileSync(p, 'utf8'));
+  };
+
+  if (cmd === 'scan') {
+    const dir = dirOf(1);
+    const g = buildGraph(dir);
+    const cq = path.join(dir, '.codequest');
+    fs.mkdirSync(cq, { recursive: true });
+    fs.writeFileSync(path.join(cq, 'graph.json'), JSON.stringify(g, null, 2));
+    fs.writeFileSync(path.join(cq, 'repo-map.md'), repoMapMd(g));
+    const entryN = g.modules.filter(m => m.isEntry).length;
+    return out(asJson
+      ? JSON.stringify({ modules: g.modules.length, edges: g.edges.length, entries: entryN })
+      : `codequest: scanned ${g.modules.length} modules, ${g.edges.length} import edges, ${entryN} entr${entryN === 1 ? 'y' : 'ies'} → .codequest/`);
+  }
+  if (cmd === 'map') return out(asJson
+    ? JSON.stringify(loadGraph(dirOf(1)), null, 2)
+    : repoMapMd(loadGraph(dirOf(1))));
+  if (cmd === 'modules') {
+    const g = loadGraph(dirOf(1));
+    if (asJson) return out(JSON.stringify(g.modules.map(m => ({
+      id: m.id, lang: m.lang, layer: m.layer, exports: m.exports,
+      fanIn: m.fanIn, fanOut: m.fanOut, risk: m.risk,
+    })), null, 2));
+    return out(g.modules.map(m =>
+      `${m.id}  [${m.lang}/${m.layer}]  exports: ${m.exports.join(', ') || '—'}  in/out ${m.fanIn}/${m.fanOut}  ${riskTag(m.risk)}`
+    ).join('\n'));
+  }
+  if (cmd === 'blast-radius') {
+    if (!args[1]) return fail('usage: codequest blast-radius <file> [dir]', asJson);
+    return cmdBlastRadius(loadGraph(dirOf(2)), args[1], asJson);
+  }
+  if (cmd === 'story') {
+    if (!args[1]) return fail('usage: codequest story <entry-file> [dir]', asJson);
+    return cmdStory(loadGraph(dirOf(2)), args[1], asJson);
+  }
+  return fail(`unknown command "${cmd}" — try --help`, asJson);
+}
+
+main();
