@@ -620,7 +620,7 @@ export default function App() {
         />
       </header>
 
-      <div className="main">
+      <div className={`main${selectedId ? ' file-open' : ''}`}>
         <aside className="panel left explorer">
           <FileTree
             graph={graph}
