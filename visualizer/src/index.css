@@ -202,9 +202,8 @@ button.small { padding: 7px 14px; font-size: 13px; border-radius: 8px; }
 }
 .brand { display: flex; align-items: center; gap: 10px; min-width: 0; }
 .brand-mark {
-  font-size: 20px;
-  background: linear-gradient(135deg, var(--accent), #a78bfa);
-  -webkit-background-clip: text; background-clip: text; color: transparent;
+  display: inline-flex; align-items: center;
+  filter: drop-shadow(0 0 6px rgba(56, 189, 248, 0.35));
 }
 .brand-name { font-weight: 800; letter-spacing: -0.3px; font-size: 17px; }
 .brand-file {

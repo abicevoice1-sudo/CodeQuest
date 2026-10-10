@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# CodeQuest one-line setup (macOS / Linux):
-#   curl -fsSL https://raw.githubusercontent.com/abicevoice1-sudo/CodeQuest/main/install.sh | bash
+# Aperio one-line setup (macOS / Linux):
+#   curl -fsSL https://raw.githubusercontent.com/abicevoice1-sudo/Aperio/main/install.sh | bash
 set -e
-echo "→ CodeQuest setup"
+echo "→ Aperio setup"
 
 if ! command -v node >/dev/null 2>&1; then
   echo "→ Node.js not found — installing…"
@@ -22,8 +22,8 @@ if ! command -v node >/dev/null 2>&1; then
 fi
 echo "→ node $(node --version)"
 
-echo "→ installing codequest-ai…"
-npm install -g codequest-ai
+echo "→ installing aperio…"
+npm install -g aperio
 
 echo "→ launching…"
-codequest start "$@"
+aperio start "$@"

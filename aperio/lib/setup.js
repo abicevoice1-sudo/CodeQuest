@@ -97,7 +97,7 @@ function copyMissing(src, dst) {
 function mergeMcpJson(dst, packExample) {
   const server = {
     type: 'stdio', command: 'node',
-    args: ['${workspaceFolder}/codequest/mcp-server.js'],
+    args: ['${workspaceFolder}/aperio/mcp-server.js'],
   };
   let cfg = { servers: {} };
   let existed = fs.existsSync(dst);
@@ -105,9 +105,9 @@ function mergeMcpJson(dst, packExample) {
     try { cfg = JSON.parse(fs.readFileSync(dst, 'utf8')); } catch { cfg = { servers: {} }; }
     cfg.servers = cfg.servers || {};
   }
-  const had = !!(cfg.servers && cfg.servers.codequest);
+  const had = !!(cfg.servers && (cfg.servers.aperio || cfg.servers.codequest));
   if (!had) {
-    cfg.servers.codequest = server;
+    cfg.servers.aperio = server;
     fs.mkdirSync(path.dirname(dst), { recursive: true });
     fs.writeFileSync(dst, JSON.stringify(cfg, null, 2) + '\n');
   }
@@ -115,31 +115,31 @@ function mergeMcpJson(dst, packExample) {
 }
 
 const CURSOR_RULE = `---
-description: CodeQuest repo intelligence — master prompt pointer
+description: Aperio repo intelligence — master prompt pointer
 globs:
   - "**/*"
 alwaysApply: true
 ---
 
-# CodeQuest (Cursor)
+# Aperio (Cursor)
 
-You are **CodeQuest Core AI**. Read \`codequest/CODEQUEST.md\` — it is your contract —
-plus \`.codequest/config.json\` for the audience setting (beginner/professional/expert,
+You are **Aperio Core AI**. Read \`aperio/APERIO.md\` — it is your contract —
+plus \`.aperio/config.json\` for the audience setting (beginner/professional/expert,
 businessLens) and adapt every explanation to it.
 
-Boot: run \`./codequest/bin/codequest scan\` (or read \`.codequest/graph.json\`);
-prefer the \`codequest_*\` MCP tools when configured; never fabricate a dependency —
+Boot: run \`./aperio/bin/aperio scan\` (or read \`.aperio/graph.json\`);
+prefer the \`aperio_*\` MCP tools when configured; never fabricate a dependency —
 every structural claim carries a \`file:line\` receipt.
 `;
 
-const WINDSURF_RULE = `# CodeQuest (Windsurf)
+const WINDSURF_RULE = `# Aperio (Windsurf)
 
-You are **CodeQuest Core AI**. Read \`codequest/CODEQUEST.md\` — it is your contract —
-plus \`.codequest/config.json\` for the audience setting (beginner/professional/expert,
+You are **Aperio Core AI**. Read \`aperio/APERIO.md\` — it is your contract —
+plus \`.aperio/config.json\` for the audience setting (beginner/professional/expert,
 businessLens) and adapt every explanation to it.
 
-Boot: run \`./codequest/bin/codequest scan\` (or read \`.codequest/graph.json\`);
-prefer the \`codequest_*\` MCP tools when configured; never fabricate a dependency —
+Boot: run \`./aperio/bin/aperio scan\` (or read \`.aperio/graph.json\`);
+prefer the \`aperio_*\` MCP tools when configured; never fabricate a dependency —
 every structural claim carries a \`file:line\` receipt.
 `;
 
@@ -173,8 +173,8 @@ function cmdSetup(dir, packDir, asJson, flags) {
   // 2. Per-IDE configuration.
   const mcpStates = [];
   if (targets.includes('vscode') || targets.includes('vscode-insiders')) {
-    for (const f of ['muse-instructions.md', 'agents/codequest.agent.md',
-        'instructions/codequest.instructions.md']) {
+    for (const f of ['muse-instructions.md', 'agents/aperio.agent.md',
+        'instructions/aperio.instructions.md']) {
       const src = path.join(packDir, '.github', ...f.split('/'));
       if (fs.existsSync(src)) {
         const rel = path.join('.github', ...f.split('/'));
@@ -191,12 +191,12 @@ function cmdSetup(dir, packDir, asJson, flags) {
     else written.push('.vscode/mcp.json  (dry-run)');
   }
   if (targets.includes('cursor')) {
-    put('.cursor/rules/codequest.mdc', CURSOR_RULE);
+    put('.cursor/rules/aperio.mdc', CURSOR_RULE);
     if (!flags['dry-run']) mcpStates.push('.cursor/mcp.json: ' + mergeMcpJson(path.join(dir, '.cursor', 'mcp.json'), packDir));
     else written.push('.cursor/mcp.json  (dry-run)');
   }
   if (targets.includes('windsurf')) {
-    put('.windsurf/rules/codequest.md', WINDSURF_RULE);
+    put('.windsurf/rules/aperio.md', WINDSURF_RULE);
     if (!flags['dry-run']) mcpStates.push('.windsurf/mcp.json: ' + mergeMcpJson(path.join(dir, '.windsurf', 'mcp.json'), packDir));
     else written.push('.windsurf/mcp.json  (dry-run)');
   }
@@ -208,12 +208,12 @@ function cmdSetup(dir, packDir, asJson, flags) {
     notes: env.notes,
   };
   if (!flags['dry-run']) {
-    fs.mkdirSync(path.join(dir, '.codequest'), { recursive: true });
-    fs.writeFileSync(path.join(dir, '.codequest', 'setup.json'), JSON.stringify(setupRecord, null, 2));
+    fs.mkdirSync(path.join(dir, '.aperio'), { recursive: true });
+    fs.writeFileSync(path.join(dir, '.aperio', 'setup.json'), JSON.stringify(setupRecord, null, 2));
   }
 
   if (asJson) return out(JSON.stringify(setupRecord, null, 2));
-  const L = ['# CodeQuest setup', ''];
+  const L = ['# Aperio setup', ''];
   L.push(`Detected IDEs: ${env.ides.length ? env.ides.map(i => i.name).join(', ') : '(none)'}`);
   L.push(`Detected AI assistants: ${env.assistants.length ? env.assistants.map(a => `${a.name} (${a.via})`).join(', ') : '(none)'}`);
   L.push(`Configured for: ${targets.length ? targets.join(', ') : '(none — use --all or --ide)'}`);

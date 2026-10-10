@@ -2,16 +2,16 @@
 /* CLI commands: diff, history, trends, blast-radius, story, repo-map. */
 const fs = require('fs');
 const path = require('path');
-const { out, fail } = require('./util');
+const { out, fail, cacheDir } = require('./util');
 const { fmtSize } = require('./scan');
 // --------------------------------------------------------------- commands ---
 
 const RISK_RANK = { LOW: 0, MEDIUM: 1, HIGH: 2, CRITICAL: 3 };
 
 function loadGraphInput(input) {
-  // Accepts a directory (uses .codequest/graph.json) or a graph.json path.
+  // Accepts a directory (uses .aperio/graph.json) or a graph.json path.
   const p = fs.existsSync(input) && fs.statSync(input).isDirectory()
-    ? path.join(input, '.codequest', 'graph.json') : input;
+    ? path.join(cacheDir(input), 'graph.json') : input;
   if (!fs.existsSync(p)) {
     console.error(`codequest: no graph found at ${p} — run \`codequest scan\` first.`);
     process.exit(1);
@@ -78,15 +78,15 @@ function cmdHistory(dir, asJson) {
     high: g.modules.filter(m => m.risk === 'HIGH').length,
     engine: g.engine || 'regex',
   };
-  const p = path.join(dir, '.codequest', 'history.jsonl');
+  const p = path.join(cacheDir(dir), 'history.jsonl');
   fs.appendFileSync(p, JSON.stringify(snap) + '\n');
   if (asJson) return out(JSON.stringify(snap, null, 2));
-  return out(`codequest: snapshot recorded → .codequest/history.jsonl (${snap.modules} modules, ${snap.critical} critical)`);
+  return out(`aperio: snapshot recorded → .aperio/history.jsonl (${snap.modules} modules, ${snap.critical} critical)`);
 }
 
 function cmdTrends(dir, asJson) {
-  const p = path.join(dir, '.codequest', 'history.jsonl');
-  if (!fs.existsSync(p)) return fail('no history yet — run `codequest history` to record snapshots', asJson);
+  const p = path.join(cacheDir(dir), 'history.jsonl');
+  if (!fs.existsSync(p)) return fail('no history yet — run `aperio history` to record snapshots', asJson);
   const snaps = fs.readFileSync(p, 'utf8').trim().split('\n').filter(Boolean).map(l => JSON.parse(l));
   if (asJson) return out(JSON.stringify(snaps, null, 2));
   const L = ['# CodeQuest drift history', '',
@@ -213,7 +213,7 @@ function repoMapMd(g) {
   L.push(`- Languages: ${Object.entries(langs).map(([k, v]) => `${k} (${v})`).join(', ')}`);
   L.push(`- Audience: ${g.audience || 'professional'}${g.businessLens ? ' · business lens ON' : ''}`);
   L.push(`- Engine: ${g.engine || 'regex'}${g.engine === 'tree-sitter' ? ' (AST)' : ' (zero-dep scanner)'}`);
-  L.push(`- Generated: ${g.generatedAt} (codequest ${g.version}, deterministic static scan)`, '');
+  L.push(`- Generated: ${g.generatedAt} (aperio ${g.version}, deterministic static scan)`, '');
   L.push('## Entry points');
   L.push(entries.length ? entries.map(m => `- ${m.id} (${m.lang})`).join('\n') : '- (none detected)');
   L.push('', '## Most central modules (by dependents)');

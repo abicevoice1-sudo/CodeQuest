@@ -40,7 +40,7 @@ export function useFileCode(path: string | null): { code: string | null; loadErr
       })
       .then((t) => { if (live) setCode(t); })
       .catch(() => {
-        if (live) setLoadError('Code view needs the live server — run `codequest start` in your repo.');
+        if (live) setLoadError('Code view needs the live server — run `aperio start` in your repo.');
       });
     return () => { live = false; };
   }, [path]);

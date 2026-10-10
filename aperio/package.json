@@ -1,0 +1,39 @@
+{
+  "bin": {
+    "aperio": "./bin/aperio"
+  },
+  "description": "Aperio \u2014 uncover any codebase. Drop-in repo intelligence: module graphs, blast-radius analysis, and plain-language explanations.",
+  "files": [
+    "bin/",
+    "lib/",
+    "APERIO.md",
+    "AGENTS.md",
+    ".github/",
+    "skills/",
+    "templates/",
+    "ci/",
+    "mcp-server.js",
+    "mcp.example.json",
+    "parsers/tree-sitter/extract.js",
+    "parsers/tree-sitter/README.md",
+    "README.md",
+    "visualizer/"
+  ],
+  "keywords": [
+    "code-analysis",
+    "github-copilot",
+    "developer-tools",
+    "static-analysis",
+    "mcp"
+  ],
+  "license": "MIT",
+  "scripts": {
+    "prepack": "cd ../visualizer && npm install --no-audit --no-fund >/dev/null 2>&1 && npm run build >/dev/null 2>&1 && rm -rf ../aperio/visualizer && cp -r dist ../aperio/visualizer"
+  },
+  "name": "aperio",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/abicevoice1-sudo/Aperio.git"
+  },
+  "version": "1.0.0"
+}

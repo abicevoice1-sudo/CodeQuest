@@ -18,15 +18,15 @@ jobs:
           node-version: 20
 
       - name: Scan PR head
-        run: ./codequest/bin/codequest scan .
+        run: ./aperio/bin/aperio scan .
 
       - name: Scan base branch
         run: |
           git fetch origin "${{ github.base_ref }}" --depth=1
           git worktree add /tmp/cq-base "origin/${{ github.base_ref }}"
-          ./codequest/bin/codequest scan /tmp/cq-base
+          ./aperio/bin/aperio scan /tmp/cq-base
 
       - name: Architecture drift gate
         # Fails on: new CRITICAL-risk modules (or escalations to CRITICAL),
         # new circular imports. Tune with --fail-on critical,cycles,escalations.
-        run: ./codequest/bin/codequest diff /tmp/cq-base .codequest/graph.json
+        run: ./aperio/bin/aperio diff /tmp/cq-base .aperio/graph.json

@@ -1,1 +1,62 @@
-{"activationEvents":["onStartupFinished"],"categories":["Other"],"contributes":{"commands":[{"command":"codequest.scan","title":"CodeQuest: Scan workspace"},{"command":"codequest.openGraph","title":"CodeQuest: Open dependency graph"}],"configuration":{"properties":{"codequest.engine":{"default":"regex","description":"Parser engine for CodeQuest scans.","enum":["regex","tree-sitter"],"type":"string"}},"title":"CodeQuest"},"views":{"explorer":[{"id":"codequest-view","name":"CodeQuest"}]}},"description":"CodeQuest AI inside VS Code — dependency graph, blast radius, and repo intelligence.","displayName":"CodeQuest","engines":{"vscode":"^1.85.0"},"license":"MIT","main":"./out/extension.js","name":"codequest","publisher":"codequest","version":"1.1.0","scripts":{"test":"echo \"Error: no test specified\" && exit 1"},"keywords":[],"author":"","devDependencies":{"@types/node":"^26.6.5","@types/vscode":"^1.85.0","typescript":"^7.0.2"}}
+{
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "categories": [
+    "Other"
+  ],
+  "contributes": {
+    "commands": [
+      {
+        "command": "aperio.scan",
+        "title": "Aperio: Scan workspace"
+      },
+      {
+        "command": "aperio.openGraph",
+        "title": "Aperio: Open dependency graph"
+      }
+    ],
+    "configuration": {
+      "properties": {
+        "aperio.engine": {
+          "default": "regex",
+          "description": "Parser engine for Aperio scans.",
+          "enum": [
+            "regex",
+            "tree-sitter"
+          ],
+          "type": "string"
+        }
+      },
+      "title": "Aperio"
+    },
+    "views": {
+      "explorer": [
+        {
+          "id": "aperio-view",
+          "name": "Aperio"
+        }
+      ]
+    }
+  },
+  "description": "Aperio inside VS Code \u2014 uncover any codebase: dependency graph, blast radius, and repo intelligence.",
+  "displayName": "Aperio",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "license": "MIT",
+  "main": "./out/extension.js",
+  "name": "aperio",
+  "publisher": "aperio",
+  "version": "1.1.0",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "devDependencies": {
+    "@types/node": "^26.6.5",
+    "@types/vscode": "^1.85.0",
+    "typescript": "^7.0.2"
+  }
+}

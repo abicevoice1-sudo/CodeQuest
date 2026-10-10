@@ -3,27 +3,27 @@ import * as path from 'path';
 import * as fs from 'fs';
 import { execFileSync } from 'child_process';
 
-const PACK_ANALYZER = 'codequest/bin/codequest';
+const PACK_ANALYZER = 'aperio/bin/aperio';
 
-/** Find the CodeQuest pack: bundled with the extension, or a sibling checkout. */
+/** Find the Aperio pack: bundled with the extension, or a sibling checkout. */
 function findPackRoot(extRoot: string): string | null {
   const bundled = path.join(extRoot, PACK_ANALYZER);
-  if (fs.existsSync(bundled)) return path.join(extRoot, 'codequest');
-  // Dev: extension lives at <repo>/extensions/vscode → pack at <repo>/codequest
-  const dev = path.join(extRoot, '..', '..', 'codequest', 'bin', 'codequest');
-  if (fs.existsSync(dev)) return path.join(extRoot, '..', '..', 'codequest');
+  if (fs.existsSync(bundled)) return path.join(extRoot, 'aperio');
+  // Dev: extension lives at <repo>/extensions/vscode → pack at <repo>/aperio
+  const dev = path.join(extRoot, '..', '..', 'aperio', 'bin', 'aperio');
+  if (fs.existsSync(dev)) return path.join(extRoot, '..', '..', 'aperio');
   return null;
 }
 
 function runScan(packRoot: string, workspaceRoot: string, engine: string): string {
-  const bin = path.join(packRoot, 'bin', 'codequest');
+  const bin = path.join(packRoot, 'bin', 'aperio');
   const args = ['scan', workspaceRoot];
   if (engine === 'tree-sitter') args.push('--engine', 'tree-sitter');
   execFileSync(process.execPath, [bin, ...args], { stdio: 'pipe', timeout: 120000 });
-  return path.join(workspaceRoot, '.codequest', 'graph.json');
+  return path.join(workspaceRoot, '.aperio., 'graph.json');
 }
 
-class CodeQuestViewProvider implements vscode.WebviewViewProvider {
+class AperioViewProvider implements vscode.WebviewViewProvider {
   constructor(private extRoot: string) {}
 
   resolveWebviewView(view: vscode.WebviewView) {
@@ -35,7 +35,7 @@ class CodeQuestViewProvider implements vscode.WebviewViewProvider {
           const doc = await vscode.workspace.openTextDocument(uri);
           await vscode.window.showTextDocument(doc, { preview: true });
         } catch {
-          vscode.window.showWarningMessage(`CodeQuest: cannot open ${msg.path}`);
+          vscode.window.showWarningMessage(`Aperio: cannot open ${msg.path}`);
         }
       }
     });
@@ -45,23 +45,23 @@ class CodeQuestViewProvider implements vscode.WebviewViewProvider {
   refresh(view: vscode.WebviewView) {
     const folders = vscode.workspace.workspaceFolders;
     if (!folders?.length) {
-      view.webview.html = `<body style="background:#0a0a0c;color:#a1a1aa;font-family:sans-serif;padding:24px">Open a folder to use CodeQuest.</body>`;
+      view.webview.html = `<body style="background:#0a0a0c;color:#a1a1aa;font-family:sans-serif;padding:24px">Open a folder to use Aperio.</body>`;
       return;
     }
     const ws = folders[0].uri.fsPath;
     const packRoot = findPackRoot(this.extRoot);
     if (!packRoot) {
-      view.webview.html = `<body style="background:#0a0a0c;color:#a1a1aa;font-family:sans-serif;padding:24px">CodeQuest analyzer not found.</body>`;
+      view.webview.html = `<body style="background:#0a0a0c;color:#a1a1aa;font-family:sans-serif;padding:24px">Aperio analyzer not found.</body>`;
       return;
     }
     try {
-      const engine = vscode.workspace.getConfiguration('codequest').get<string>('engine', 'regex');
+      const engine = vscode.workspace.getConfiguration('aperio').get<string>('engine', 'regex');
       const graphPath = runScan(packRoot, ws, engine);
       const graph = JSON.parse(fs.readFileSync(graphPath, 'utf8'));
       view.webview.html = this.htmlFor(view.webview, graph);
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
-      view.webview.html = `<body style="background:#0a0a0c;color:#fda4af;font-family:sans-serif;padding:24px">CodeQuest scan failed:<br><pre>${msg.replace(/</g, '&lt;')}</pre></body>`;
+      view.webview.html = `<body style="background:#0a0a0c;color:#fda4af;font-family:sans-serif;padding:24px">Aperio scan failed:<br><pre>${msg.replace(/</g, '&lt;')}</pre></body>`;
     }
   }
 
@@ -86,30 +86,30 @@ class CodeQuestViewProvider implements vscode.WebviewViewProvider {
 }
 
 export function activate(ctx: vscode.ExtensionContext) {
-  const provider = new CodeQuestViewProvider(ctx.extensionPath);
-  ctx.subscriptions.push(vscode.window.registerWebviewViewProvider('codequest-view', provider));
+  const provider = new AperioViewProvider(ctx.extensionPath);
+  ctx.subscriptions.push(vscode.window.registerWebviewViewProvider(.aperio.view', provider));
 
   ctx.subscriptions.push(
-    vscode.commands.registerCommand('codequest.scan', async () => {
+    vscode.commands.registerCommand('aperio.scan', async () => {
       const folders = vscode.workspace.workspaceFolders;
-      if (!folders?.length) return vscode.window.showWarningMessage('CodeQuest: open a folder first.');
+      if (!folders?.length) return vscode.window.showWarningMessage('Aperio: open a folder first.');
       const packRoot = findPackRoot(ctx.extensionPath);
-      if (!packRoot) return vscode.window.showErrorMessage('CodeQuest: analyzer not found.');
+      if (!packRoot) return vscode.window.showErrorMessage('Aperio: analyzer not found.');
       await vscode.window.withProgress(
-        { location: vscode.ProgressLocation.Notification, title: 'CodeQuest: scanning…' },
+        { location: vscode.ProgressLocation.Notification, title: 'Aperio: scanning…' },
         async () => {
           try {
-            const engine = vscode.workspace.getConfiguration('codequest').get<string>('engine', 'regex');
+            const engine = vscode.workspace.getConfiguration('aperio').get<string>('engine', 'regex');
             runScan(packRoot, folders[0].uri.fsPath, engine);
-            vscode.window.showInformationMessage('CodeQuest: scan complete.');
+            vscode.window.showInformationMessage('Aperio: scan complete.');
           } catch (e) {
-            vscode.window.showErrorMessage(`CodeQuest scan failed: ${e instanceof Error ? e.message : e}`);
+            vscode.window.showErrorMessage(`Aperio scan failed: ${e instanceof Error ? e.message : e}`);
           }
         },
       );
     }),
-    vscode.commands.registerCommand('codequest.openGraph', () =>
-      vscode.commands.executeCommand('codequest-view.focus'),
+    vscode.commands.registerCommand('aperio.openGraph', () =>
+      vscode.commands.executeCommand(.aperio.view.focus'),
     ),
   );
 }

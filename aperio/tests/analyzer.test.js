@@ -1,9 +1,9 @@
 'use strict';
 /**
  * CodeQuest analyzer test suite — node:test, zero dependencies.
- * Run:  node --test codequest/tests/
+ * Run:  node --test aperio/tests/
  * Asserts deterministic behavior on the example fixtures. If any assertion
- * fails, the analyzer's contract (.codequest/graph.json) is broken.
+ * fails, the analyzer's contract (.aperio/graph.json) is broken.
  */
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
@@ -13,7 +13,7 @@ const os = require('os');
 const path = require('path');
 
 const ROOT = path.join(__dirname, '..', '..');
-const BIN = path.join(ROOT, 'codequest', 'bin', 'codequest');
+const BIN = path.join(ROOT, 'aperio', 'bin', 'aperio');
 const FIX_APP = path.join(ROOT, 'examples', 'sample-app');
 const FIX_EDGE = path.join(ROOT, 'examples', 'edge-cases');
 
@@ -30,7 +30,7 @@ function cpdir(src, dst) {
 }
 function scan(dir) {
   execFileSync(process.execPath, [BIN, 'scan', dir], { stdio: 'pipe' });
-  return JSON.parse(fs.readFileSync(path.join(dir, '.codequest', 'graph.json'), 'utf8'));
+  return JSON.parse(fs.readFileSync(path.join(dir, '.aperio', 'graph.json'), 'utf8'));
 }
 function edges(g) {
   return new Set(g.edges.map(e => `${e.from}→${e.to}`));
@@ -191,7 +191,7 @@ test('assets: configs, docs, images, data inventoried and shown', () => {
   assert.equal(byId.get('logo.png').kind, 'image');
   assert.equal(byId.get('.env').layer, 'Config');
   assert.equal(byId.get('q.sql').kind, 'data');
-  const map = fs.readFileSync(path.join(dir, '.codequest', 'repo-map.md'), 'utf8');
+  const map = fs.readFileSync(path.join(dir, '.aperio', 'repo-map.md'), 'utf8');
   assert.ok(map.includes('Assets, configs & docs (5)'));
 });
 
@@ -206,7 +206,7 @@ test('assets: js importing a json config creates an edge', () => {
 test('init: writes config; scan picks up audience', () => {
   const dir = tmp();
   execFileSync(process.execPath, [BIN, 'init', dir, '--audience', 'expert', '--business'], { stdio: 'pipe' });
-  const cfg = JSON.parse(fs.readFileSync(path.join(dir, '.codequest', 'config.json'), 'utf8'));
+  const cfg = JSON.parse(fs.readFileSync(path.join(dir, '.aperio', 'config.json'), 'utf8'));
   assert.equal(cfg.audience, 'expert');
   assert.equal(cfg.businessLens, true);
   const g = scan(dir);
@@ -227,24 +227,24 @@ test('setup: detects IDEs/assistants and writes per-IDE config', () => {
   assert.ok(rec.detected.ides.some(i => i.id === 'cursor'), 'detects cursor');
   assert.ok(rec.detected.assistants.some(a => a.id === 'copilot'), 'detects copilot');
   assert.ok(fs.existsSync(path.join(dir, '.github', 'muse-instructions.md')));
-  assert.ok(fs.existsSync(path.join(dir, '.cursor', 'rules', 'codequest.mdc')));
+  assert.ok(fs.existsSync(path.join(dir, '.cursor', 'rules', 'aperio.mdc')));
   assert.ok(fs.existsSync(path.join(dir, 'AGENTS.md')));
   const mcp = JSON.parse(fs.readFileSync(path.join(dir, '.vscode', 'mcp.json'), 'utf8'));
-  assert.ok(mcp.servers.codequest, 'mcp server wired');
-  assert.ok(fs.existsSync(path.join(dir, '.codequest', 'setup.json')));
+  assert.ok(mcp.servers.aperio, 'mcp server wired');
+  assert.ok(fs.existsSync(path.join(dir, '.aperio', 'setup.json')));
 });
 
 test('tree-sitter engine: edge parity with regex engine', () => {
-  const nm = path.join(ROOT, 'codequest', 'parsers', 'tree-sitter', 'node_modules');
+  const nm = path.join(ROOT, 'aperio', 'parsers', 'tree-sitter', 'node_modules');
   if (!fs.existsSync(nm)) {
-    console.log('  (skip: tree-sitter deps not installed — cd codequest/parsers/tree-sitter && npm install)');
+    console.log('  (skip: tree-sitter deps not installed — cd aperio/parsers/tree-sitter && npm install)');
     return;
   }
   const d1 = tmp(); cpdir(FIX_EDGE, d1); scan(d1);
   const d2 = tmp(); cpdir(FIX_EDGE, d2);
   execFileSync(process.execPath, [BIN, 'scan', d2, '--engine', 'tree-sitter'], { stdio: 'pipe' });
-  const g1 = JSON.parse(fs.readFileSync(path.join(d1, '.codequest', 'graph.json'), 'utf8'));
-  const g2 = JSON.parse(fs.readFileSync(path.join(d2, '.codequest', 'graph.json'), 'utf8'));
+  const g1 = JSON.parse(fs.readFileSync(path.join(d1, '.aperio', 'graph.json'), 'utf8'));
+  const g2 = JSON.parse(fs.readFileSync(path.join(d2, '.aperio', 'graph.json'), 'utf8'));
   assert.equal(g2.engine, 'tree-sitter');
   const e1 = new Set(g1.edges.map(e => e.from + '→' + e.to));
   const e2 = new Set(g2.edges.map(e => e.from + '→' + e.to));
@@ -255,7 +255,7 @@ test('history records snapshots; trends shows them', () => {
   const d = tmp(); cpdir(FIX_EDGE, d); scan(d);
   const runCmd = (c) => execFileSync(process.execPath, [BIN, c, d], { encoding: 'utf8' });
   runCmd('history');
-  const h1 = path.join(d, '.codequest', 'history.jsonl');
+  const h1 = path.join(d, '.aperio', 'history.jsonl');
   assert.ok(fs.existsSync(h1), 'history.jsonl created');
   const snap = JSON.parse(fs.readFileSync(h1, 'utf8').trim().split('\n')[0]);
   assert.ok(snap.at && typeof snap.modules === 'number' && snap.modules > 0, 'snapshot has fields');
@@ -299,9 +299,9 @@ test('start: runs setup then serves the visualizer (json mode)', async () => {
   });
   assert.ok(/^http:\/\/127\.0\.0\.1:\d+$/.test(url), 'visualize url emitted');
   assert.ok(buf.includes('"written"'), 'setup json emitted');
-  assert.ok(fs.existsSync(path.join(d, '.codequest', 'graph.json')), 'graph written');
+  assert.ok(fs.existsSync(path.join(d, '.aperio', 'graph.json')), 'graph written');
   assert.ok(fs.existsSync(path.join(d, 'AGENTS.md')), 'AGENTS.md written by setup');
-  assert.ok(fs.existsSync(path.join(d, 'CODEQUEST.md')), 'pack copied into the repo');
+  assert.ok(fs.existsSync(path.join(d, 'APERIO.md')), 'pack copied into the repo');
   assert.ok(fs.existsSync(path.join(d, 'skills')), 'pack skills copied');
   // the served page boots straight into this repo's graph
   const page = await new Promise((resolve, reject) => {

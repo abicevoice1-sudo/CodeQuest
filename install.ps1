@@ -1,6 +1,6 @@
-# CodeQuest one-line setup (Windows PowerShell — run as admin for the Node install step):
-#   irm https://raw.githubusercontent.com/abicevoice1-sudo/CodeQuest/main/install.ps1 | iex
-Write-Host "→ CodeQuest setup"
+# Aperio one-line setup (Windows PowerShell — run as admin for the Node install step):
+#   irm https://raw.githubusercontent.com/abicevoice1-sudo/Aperio/main/install.ps1 | iex
+Write-Host "→ Aperio setup"
 
 if (-not (Get-Command node -ErrorAction SilentlyContinue)) {
   Write-Host "→ Node.js not found — installing…"
@@ -9,8 +9,8 @@ if (-not (Get-Command node -ErrorAction SilentlyContinue)) {
 }
 Write-Host "→ node $(node --version)"
 
-Write-Host "→ installing codequest-ai…"
-npm install -g codequest-ai
+Write-Host "→ installing aperio…"
+npm install -g aperio
 
 Write-Host "→ launching…"
-codequest start @args
+aperio start @args
