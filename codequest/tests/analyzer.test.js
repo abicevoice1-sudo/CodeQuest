@@ -344,3 +344,17 @@ test('visualize /api/file serves repo files, blocks traversal', async () => {
   assert.equal(missing.status, 404, 'missing file 404s');
   child.kill('SIGTERM');
 });
+
+test('export writes a self-contained HTML report', () => {
+  const d = tmp(); cpdir(FIX_EDGE, d);
+  fs.writeFileSync(path.join(d, 'hello.js'), 'const x = 1;\n');
+  const dest = path.join(d, 'report.html');
+  const out = execFileSync(process.execPath, [BIN, 'export', d, '-o', dest], { encoding: 'utf8' });
+  assert.ok(out.includes('exported'), 'export confirms');
+  assert.ok(fs.existsSync(dest), 'report written');
+  const html = fs.readFileSync(dest, 'utf8');
+  assert.ok(!html.includes('src="/assets'), 'no external asset refs');
+  assert.ok(html.includes('window.__CODEQUEST_GRAPH__'), 'graph injected');
+  assert.ok(html.includes('window.__CODEQUEST_FILES__'), 'files injected');
+  assert.ok(html.includes('const x = 1;'), 'source embedded');
+});

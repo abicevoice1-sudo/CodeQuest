@@ -9,12 +9,15 @@ export function CodePanel({ path, code, loadError }: { path: string; code: strin
   );
 }
 
-/** Fetch the selected file's source once; shared by Code + Explain tabs. */
+/** Fetch the selected file's source once; shared by Code + Explain tabs.
+    Prefers embedded sources (standalone export), falls back to the live server. */
 export function useFileCode(path: string | null): { code: string | null; loadError: string } {
   const [code, setCode] = useState<string | null>(null);
   const [loadError, setLoadError] = useState('');
   useEffect(() => {
     if (!path) { setCode(null); setLoadError(''); return; }
+    const embedded = (window as unknown as { __CODEQUEST_FILES__?: Record<string, string> }).__CODEQUEST_FILES__?.[path];
+    if (embedded != null) { setCode(embedded); setLoadError(''); return; }
     let live = true;
     setCode(null);
     setLoadError('');

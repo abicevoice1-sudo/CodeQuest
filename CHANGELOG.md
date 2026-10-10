@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.6.0 — 2026-10-10
+- New `export` command: `codequest export -o report.html` writes one self-contained HTML file — graph, source code, and UI all inlined. Double-click it, email it, host it anywhere. No server, no uploads, nothing to install for the viewer.
+- The Code tab now prefers embedded sources, so exported reports show code offline.
+
 ## 1.5.0 — 2026-10-10
 - Voice now **speaks a file's purpose and impact**: "explain this file" (or the 🔊 button) narrates what the module does, what it exposes, who imports it — and what would break if you change it. Deterministic, from the graph: no API key, no cost, always works.
 - The AI ✨ Explain tab stays for the deep LLM dive.

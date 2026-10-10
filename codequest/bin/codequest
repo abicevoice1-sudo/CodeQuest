@@ -13,6 +13,7 @@ const { buildGraph, runTreeSitterExtract } = require('../lib/scan');
 const { cmdDiff, cmdHistory, cmdTrends, cmdBlastRadius, cmdStory, repoMapMd, riskTag } = require('../lib/commands');
 const { cmdSetup } = require('../lib/setup');
 const { cmdVisualize, cmdStart } = require('../lib/serve');
+const { cmdExport } = require('../lib/export');
 const { VERSION } = require('../lib/scan');
 
 function main() {
@@ -25,6 +26,8 @@ function main() {
     if (a === '--json' || a === '--business' || a === '--force' || a === '--dry-run' || a === '--all') {
       flags[a.slice(2)] = true; continue;
     }
+    if (a === '-o') { flags.o = rawArgs[i + 1]; i++; continue; }
+    if (a.startsWith('-o=')) { flags.o = a.slice(3); continue; }
     if (a.startsWith('--')) {
       const eq = a.indexOf('=');
       if (eq >= 0) flags[a.slice(2, eq)] = a.slice(eq + 1);
@@ -55,6 +58,7 @@ function main() {
       '  trends [dir]               show drift history over time',
       '  start [dir]                the easy one: copy the pack in, set up your IDE, open the graph',
       '  visualize [dir]            scan + open the interactive graph in your browser',
+      '  export [dir] -o report.html  one self-contained HTML file: graph + code, no server',
       '',
       'Add --json for machine-readable output.',
       'diff honors --fail-on <list>: comma list of critical,cycles,escalations (default: critical,cycles).',
@@ -151,6 +155,10 @@ function main() {
   if (cmd === 'start') {
     const packDir = path.join(__dirname, '..'); // codequest/bin/codequest → codequest/
     return cmdStart(dirOf(1), packDir, asJson, flags);
+  }
+  if (cmd === 'export') {
+    const packDir = path.join(__dirname, '..'); // codequest/bin/codequest → codequest/
+    return cmdExport(dirOf(1), packDir, flags.o || flags.out || null, flags);
   }
   return fail(`unknown command "${cmd}" — try --help`, asJson);
 }
