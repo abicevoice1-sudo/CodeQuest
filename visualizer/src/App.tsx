@@ -143,7 +143,7 @@ export default function App() {
     try {
       return migrateProficiency(localStorage.getItem('codequest.proficiency'));
     } catch {
-      return 'junior';
+      return 'non-technical';
     }
   });
 
@@ -193,18 +193,18 @@ export default function App() {
     setScope({ kind: 'repo' });
     setError('');
     // Large repos: declutter by default so the graph stays readable.
-    // Small screens: also declutter — 180 nodes don't fit on a phone.
+    // Key-files view kicks in above 60 modules on any screen — 180 nodes is spaghetti.
     const smallScreen = typeof window !== 'undefined' && window.innerWidth < 900;
     if (g.modules.length > 400 || smallScreen) {
       setHideTests(true);
       setHideAssets(true);
-      setKeyOnly(smallScreen);
-      if (g.modules.length > 400) setTip('Large repo — tests & configs hidden. Toggle them in Show.');
     } else {
       setHideTests(false);
       setHideAssets(false);
-      setKeyOnly(false);
     }
+    const manyNodes = g.modules.length > 60;
+    setKeyOnly(smallScreen || manyNodes);
+    if (manyNodes && !smallScreen) setTip('Showing key files — toggle "Show all" in Show to see everything.');
   }, []);
 
   // Re-layout whenever the graph, scope, or filters change.
@@ -761,7 +761,7 @@ export default function App() {
               pannable
               zoomable
               className="cq-minimap"
-              style={{ background: 'var(--bg-inset)', border: '1px solid var(--border-strong)', borderRadius: 8 }}
+              style={{ background: 'var(--bg-inset)', border: '1px solid var(--border-strong)', borderRadius: 8, width: 200, height: 140 }}
               nodeColor={(n) => RISK_COLORS[(n.data?.risk as Risk) || 'LOW']}
             />
           </ReactFlow>

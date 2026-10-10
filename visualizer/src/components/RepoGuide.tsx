@@ -3,6 +3,7 @@ import type { CodeQuestGraph, RepoIntel, IntelTable } from '../types';
 import { shortName } from '../types';
 import { describeBusiness, type Proficiency } from '../lib/narrate';
 import { describeColumn } from '../lib/columns';
+import { FigmaGuideStrip } from './FigmaDesigns';
 
 type Prof = Proficiency;
 
@@ -547,6 +548,7 @@ export default function RepoGuide({
                         </div>
                         <h3 className="guide-h3">Follow one request</h3>
                         <p className="guide-lede">{story.journey}</p>
+                        <FigmaGuideStrip />
                       </>
                     );
                   })()}

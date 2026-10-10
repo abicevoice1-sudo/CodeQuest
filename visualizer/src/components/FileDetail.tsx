@@ -4,6 +4,7 @@ import { langOf } from '../lib/highlight';
 import { CodePanel } from './CodePanel';
 import { ExplainPanel } from './ExplainPanel';
 import { JiraIssues } from './JiraIssues';
+import { FigmaDesigns } from './FigmaDesigns';
 import type { ExplainContext } from '../lib/ai';
 import type { Narration } from '../lib/narrate';
 
@@ -131,6 +132,7 @@ export function FileDetail({
                 <span className="fd-blast-hint">see what breaks</span>
               </button>
               <JiraIssues filePath={module.path} code={code} />
+              <FigmaDesigns filePath={module.path} />
               {inVsCode && (
                 <button
                   className="ghost small"

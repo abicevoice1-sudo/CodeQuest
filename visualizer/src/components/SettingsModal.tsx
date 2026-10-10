@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { loadAISettings, saveAISettings } from '../lib/ai';
 import { getVoices, groupVoices, loadVoiceSettings, saveVoiceSettings, speak } from '../lib/voice';
 import { loadJiraSettings, saveJiraSettings, testJiraConnection, jiraConfigured } from '../lib/jira';
+import { loadFigmaSettings, saveFigmaSettings, testFigmaConnection, figmaConfigured, extractFileKey } from '../lib/figma';
 import { THEMES, type ThemeId } from '../lib/theme';
 
 interface EnvMatch { key: string; score: number; masked: string; }
@@ -28,6 +29,9 @@ export function SettingsModal({
   const [js, setJs] = useState(loadJiraSettings());
   const [jiraTest, setJiraTest] = useState('');
   const [jiraTesting, setJiraTesting] = useState(false);
+  const [fs, setFs] = useState(loadFigmaSettings());
+  const [figmaTest, setFigmaTest] = useState('');
+  const [figmaTesting, setFigmaTesting] = useState(false);
 
   useEffect(() => { getVoices().then(setVoices); }, []);
   const voiceGroups = useMemo(() => groupVoices(voices), [voices]);
@@ -36,6 +40,7 @@ export function SettingsModal({
     saveAISettings({ ...s, endpoint: s.endpoint.trim().replace(/\/$/, ''), model: s.model.trim() });
     saveVoiceSettings(vs);
     saveJiraSettings({ ...js, url: js.url.trim().replace(/\/$/, '') });
+    saveFigmaSettings({ accessToken: fs.accessToken.trim(), fileUrls: fs.fileUrls.map((u) => u.trim()).filter(Boolean) });
     setSaved(true);
     setTimeout(onClose, 700);
   };
@@ -55,6 +60,19 @@ export function SettingsModal({
       setJiraTest(`✗ ${e instanceof Error ? e.message : 'Connection failed.'}`);
     }
     setJiraTesting(false);
+  };
+
+  const testFigma = async () => {
+    setFigmaTesting(true);
+    setFigmaTest('');
+    try {
+      const name = await testFigmaConnection({ ...fs, accessToken: fs.accessToken.trim() });
+      const keys = fs.fileUrls.map(extractFileKey).filter(Boolean);
+      setFigmaTest(`✓ Connected as ${name}${keys.length ? ` · ${keys.length} design file${keys.length === 1 ? '' : 's'} linked` : ' · no design files linked yet'}`);
+    } catch (e) {
+      setFigmaTest(`✗ ${e instanceof Error ? e.message : 'Connection failed.'}`);
+    }
+    setFigmaTesting(false);
   };
 
   const pickVoice = (uri: string) => {
@@ -168,6 +186,29 @@ export function SettingsModal({
           {jiraTesting ? 'Testing…' : jiraConfigured(js) ? '🔗 Test connection' : '🔗 Connect Jira'}
         </button>
         {jiraTest && <p className="modal-sub">{jiraTest}</p>}
+
+        <h4 className="modal-sec">Figma — design context</h4>
+        <p className="modal-sub">
+          Attach Figma design files so anyone viewing the code can see the designs
+          too — business people see what the product looks like, devs see which
+          frames match the file they're reading. Token stays in your browser.
+        </p>
+        <label>Personal access token
+          <input type="password" value={fs.accessToken} onChange={(e) => setFs({ ...fs, accessToken: e.target.value })} placeholder="Create at Figma → Settings → Personal access tokens" />
+        </label>
+        <label>Design file URLs <span className="modal-opt">(one per line)</span>
+          <textarea
+            value={fs.fileUrls.join('\n')}
+            onChange={(e) => setFs({ ...fs, fileUrls: e.target.value.split('\n') })}
+            placeholder={'https://www.figma.com/design/AbC123/My-App\nhttps://www.figma.com/design/XyZ789/Admin-Panel'}
+            rows={3}
+            className="figma-urls"
+          />
+        </label>
+        <button className="ghost small" onClick={testFigma} disabled={figmaTesting} style={{ marginBottom: 10 }}>
+          {figmaTesting ? 'Testing…' : figmaConfigured(fs) ? '🎨 Test connection' : '🎨 Connect Figma'}
+        </button>
+        {figmaTest && <p className="modal-sub">{figmaTest}</p>}
 
         <h4 className="modal-sec">AI explain</h4>
         <p className="modal-sub">

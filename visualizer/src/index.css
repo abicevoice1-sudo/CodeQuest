@@ -276,10 +276,14 @@ button.small { padding: 7px 14px; font-size: 13px; border-radius: 8px; }
 .cq-node.test { opacity: 0.75; }
 .cq-node-body { padding: 10px 12px; height: 100%; display: flex; flex-direction: column; justify-content: center; }
 .cq-node-title {
-  font-size: 13px; font-weight: 600; color: var(--text);
+  font-size: 14.5px; font-weight: 650; color: var(--text);
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   display: flex; align-items: center;
 }
+.cq-node.hot .cq-node-title { font-weight: 750; }
+.cq-node.hot { border-width: 2px; }
+.cq-riskbar { position: absolute; left: 0; top: 0; bottom: 0; width: 4px; border-radius: 10px 0 0 10px; background: var(--risk); }
+.cq-node.hot .cq-riskbar { width: 6px; box-shadow: 0 0 12px var(--risk); }
 .cq-node-sub { display: flex; justify-content: space-between; gap: 10px; margin-top: 5px; font-size: 11px; color: var(--text-faint); }
 .cq-layer { font-weight: 600; }
 .cq-fans { font-family: ui-monospace, monospace; }
@@ -1167,3 +1171,33 @@ details.filters section { padding: 0 12px 12px; }
 .jira-status.s-in-progress { background: #f59e0b22; color: #fcd34d; }
 .jira-priority { font-weight: 600; }
 .jira-assignee { margin-left: auto; }
+
+/* ---------------- Figma ---------------- */
+.figma-cards { display: flex; flex-direction: column; gap: 10px; }
+.figma-card {
+  border-radius: 12px; background: var(--bg); border: 1px solid var(--border-strong);
+  overflow: hidden; transition: border-color 0.15s;
+}
+.figma-card:hover { border-color: var(--accent); }
+.figma-thumb {
+  display: block; width: 100%; padding: 0; border: 0; background: #1e1e1e; cursor: pointer;
+}
+.figma-thumb img, .figma-thumb-img {
+  display: block; width: 100%; height: auto; max-height: 220px; object-fit: cover; object-position: top;
+}
+.figma-meta { padding: 10px 12px; }
+.figma-name { font-size: 13px; font-weight: 700; color: var(--text); }
+.figma-actions { display: flex; gap: 8px; margin-top: 8px; }
+.figma-open { text-decoration: none; display: inline-flex; align-items: center; }
+.figma-embed {
+  display: block; width: 100%; height: 420px; border: 0; border-top: 1px solid var(--border);
+}
+.figma-link { text-decoration: none; color: var(--text); }
+.figma-urls {
+  width: 100%; border-radius: 8px; border: 1px solid var(--border-strong);
+  background: var(--bg); color: var(--text); font-size: 13px; padding: 8px 10px;
+  font-family: inherit; resize: vertical;
+}
+.guide-figma { margin-top: 18px; }
+.guide-figma h3 { font-size: 15px; margin: 0 0 4px; }
+.guide-figma .guide-sub { margin: 0 0 10px; }
