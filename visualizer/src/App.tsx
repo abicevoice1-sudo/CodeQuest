@@ -30,6 +30,8 @@ import { parseVoiceCommand, resolveTarget, speak, startListening, voiceSupported
 import { narrateFile, migrateProficiency, PROFICIENCY_LABELS, PROFICIENCY_ORDER, type Narration, type Proficiency } from './lib/narrate';
 import { loadTheme, saveTheme, applyTheme, type ThemeId } from './lib/theme';
 import { buildShareUrl, copyToClipboard, decodeView, isLocalOnlyUrl } from './lib/share';
+import { findAllEndpoints } from './lib/api';
+import { ApiTab } from './components/ApiTab';
 
 /* ------------------------------------------------------------------ */
 /* Custom node                                                         */
@@ -135,6 +137,7 @@ export default function App() {
   const [tab, setTab] = useState<'info' | 'explain'>('info');
   const [showSettings, setShowSettings] = useState(false);
   const [showGuide, setShowGuide] = useState(false);
+  const [mainView, setMainView] = useState<'graph' | 'api'>('graph');
   const [listening, setListening] = useState(false);
   const [voiceMsg, setVoiceMsg] = useState('');
   const [shareMsg, setShareMsg] = useState('');
@@ -669,6 +672,18 @@ export default function App() {
         )}
         <button className="ghost small" onClick={() => setShowSettings(true)} title="AI settings">⚙</button>
         <button className="ghost small" onClick={() => setShowGuide(true)} title="App guide: how to run it, how it flows, its database">📖 Guide</button>
+        {graph && (() => {
+          const n = findAllEndpoints(graph, () => undefined).length;
+          return n > 0 ? (
+            <button
+              className={`ghost small${mainView === 'api' ? ' on' : ''}`}
+              onClick={() => setMainView(mainView === 'api' ? 'graph' : 'api')}
+              title="Every API endpoint, explained"
+            >
+              🔌 API <span className="settings-badge">{n}</span>
+            </button>
+          ) : null;
+        })()}
         <button className="ghost small" onClick={shareView} title="Copy a link to this exact view — file, guide, and all">🔗 Share</button>
         <input
           ref={fileInput}
@@ -712,7 +727,19 @@ export default function App() {
           </div>
         </aside>
 
-        {selected && selectedId ? (
+        {mainView === 'api' && graph ? (
+          <main className="api-home">
+            <div className="api-home-head">
+              <h2>🔌 API Endpoints</h2>
+              <button className="ghost small" onClick={() => setMainView('graph')}>🗺️ Back to graph</button>
+            </div>
+            <ApiTab
+              graph={graph}
+              prof={proficiency}
+              onOpenFile={(id) => { setMainView('graph'); selectFile(id); }}
+            />
+          </main>
+        ) : selected && selectedId ? (
           <FileDetail
             module={selected}
             narration={narration}

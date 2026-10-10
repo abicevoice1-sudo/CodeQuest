@@ -137,6 +137,29 @@ export function ApiTab({
     );
   }, [endpoints, filter]);
 
+  const stats = useMemo(() => {
+    const byMethod: Record<string, number> = {};
+    for (const e of endpoints) {
+      for (const m of e.method.split(',').map((x) => x.trim())) {
+        byMethod[m] = (byMethod[m] || 0) + 1;
+      }
+    }
+    return byMethod;
+  }, [endpoints]);
+
+  // Group by resource: /api/users and /api/users/:id both live under "users".
+  const groups = useMemo(() => {
+    const g = new Map<string, ApiEndpoint[]>();
+    for (const e of filtered) {
+      const segs = e.path.split('/').filter(Boolean);
+      // Resource = first two meaningful segments, e.g. "api/users".
+      const resource = segs.slice(0, 2).join('/') || '/';
+      if (!g.has(resource)) g.set(resource, []);
+      g.get(resource)!.push(e);
+    }
+    return [...g.entries()].sort((a, b) => a[0].localeCompare(b[0]));
+  }, [filtered]);
+
   const business = prof === 'non-technical' || prof === 'beginner';
 
   if (!endpoints.length) {
@@ -153,10 +176,21 @@ export function ApiTab({
 
   return (
     <section>
+      <div className="api-stats">
+        <span className="api-stat"><b>{endpoints.length}</b> endpoints</span>
+        {Object.entries(stats).sort().map(([m, n]) => (
+          <span key={m} className="api-stat">
+            <span className="api-method mini" style={{
+              background: `${METHOD_COLORS[m] || '#94a3b8'}22`,
+              color: METHOD_COLORS[m] || '#94a3b8',
+            }}>{m}</span> {n}
+          </span>
+        ))}
+      </div>
       <p className="guide-lede">
         {business
-          ? `Every way the outside world can talk to this app — ${endpoints.length} door${endpoints.length === 1 ? '' : 's'}. Click one to see what it does and what it touches.`
-          : `${endpoints.length} endpoint${endpoints.length === 1 ? '' : 's'} detected. Click to expand.`}
+          ? `Every way the outside world can talk to this app. Click one to see what it does and what it touches.`
+          : `Click an endpoint to expand its dossier.`}
       </p>
       {endpoints.length > 6 && (
         <input
@@ -166,22 +200,27 @@ export function ApiTab({
           onChange={(e) => setFilter(e.target.value)}
         />
       )}
-      <div className="api-list">
-        {filtered.map((e) => {
-          const key = `${e.method}:${e.path}`;
-          return (
-            <EndpointCard
-              key={key}
-              e={e}
-              graph={graph}
-              prof={prof}
-              onOpenFile={onOpenFile}
-              expanded={openPath === key}
-              onToggle={() => setOpenPath(openPath === key ? null : key)}
-            />
-          );
-        })}
-      </div>
+      {groups.map(([resource, eps]) => (
+        <div key={resource} className="api-group">
+          <h4 className="api-group-title">/{resource}</h4>
+          <div className="api-list">
+            {eps.map((e) => {
+              const key = `${e.method}:${e.path}`;
+              return (
+                <EndpointCard
+                  key={key}
+                  e={e}
+                  graph={graph}
+                  prof={prof}
+                  onOpenFile={onOpenFile}
+                  expanded={openPath === key}
+                  onToggle={() => setOpenPath(openPath === key ? null : key)}
+                />
+              );
+            })}
+          </div>
+        </div>
+      ))}
       {!filtered.length && (
         <p className="guide-empty">No endpoints match “{filter}”.</p>
       )}

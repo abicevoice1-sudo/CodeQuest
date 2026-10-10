@@ -4,7 +4,6 @@ import { shortName } from '../types';
 import { describeBusiness, type Proficiency } from '../lib/narrate';
 import { describeColumn } from '../lib/columns';
 import { FigmaGuideStrip } from './FigmaDesigns';
-import { ApiTab } from './ApiTab';
 
 type Prof = Proficiency;
 
@@ -12,7 +11,6 @@ const TABS = [
   { id: 'run', label: '🚀 Run it' },
   { id: 'flow', label: '🔀 App flow' },
   { id: 'arch', label: '🏛 Architecture' },
-  { id: 'api', label: '🔌 API' },
   { id: 'db', label: '🗄️ Database' },
   { id: 'links', label: '🔗 Why connected' },
 ] as const;
@@ -563,10 +561,6 @@ export default function RepoGuide({
 
           {tab === 'arch' && (
             <ArchitectureTab graph={graph} prof={prof} onOpenFile={onOpenFile} />
-          )}
-
-          {tab === 'api' && (
-            <ApiTab graph={graph} prof={prof} onOpenFile={onOpenFile} />
           )}
 
           {tab === 'db' && (
