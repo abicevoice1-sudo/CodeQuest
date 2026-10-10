@@ -15,6 +15,7 @@ the CodeQuest agent can call — next to its own repo-graph tools.
 | `codequest_modules` | module list with exports, fan-in/fan-out, risk |
 | `codequest_blast_radius` | upstream + downstream by degree, risk, affected tests |
 | `codequest_story` | static dependency trace from an entry point |
+| `codequest_diff` | architecture drift between two scans (CI gate) |
 
 **Setup:** copy `codequest/mcp.example.json` → your repo's `.vscode/mcp.json`.
 VS Code discovers it on next reload; Copilot agent mode lists the five tools automatically.

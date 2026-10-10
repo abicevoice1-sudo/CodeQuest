@@ -28,3 +28,7 @@ Impact analysis for a proposed change, computed — not guessed.
 ## Tooling
 
 Prefer the `codequest_*` MCP tools when the CodeQuest MCP server is configured; fall back to `./codequest/bin/codequest` CLI otherwise. If the team has wired company APIs as MCP servers, use them where relevant and say which one informed the answer.
+
+## Audience
+
+Read `.codequest/config.json` first. Adapt depth and vocabulary per CODEQUEST.md: beginner (explain jargon, more context), professional (default, dense), expert (terse, trade-offs first), businessLens (no code unless asked — business impact, cost, risk, recommended decision).

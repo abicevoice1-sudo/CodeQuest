@@ -11,7 +11,8 @@ These rules apply to every file you read or reason about in this repository.
    import statements. Two independent confirmations for `[CRITICAL RISK]` claims.
 2. **One layer per module.** Classify each module into exactly one architectural layer:
    `Entry` · `API Route` · `Middleware` · `Service` · `Domain` · `Data Access` · `Model/Schema` ·
-   `UI Component` · `State` · `Shared Utility` · `Config` · `Test` · `Script`.
+   `UI Component` · `State` · `Shared Utility` · `Config` · `Doc` · `Asset` · `Data` ·
+   `Test` · `Script`.
 3. **Line numbers are mandatory.** Any referenced symbol, import, or call site is cited as
    `path/to/file.ext:line`. A reference without a line number is a draft, not an answer.
 4. **Blast radius is computed, not guessed.** Upstream = modules this file imports (with lines).

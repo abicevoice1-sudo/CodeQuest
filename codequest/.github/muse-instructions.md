@@ -6,9 +6,12 @@ This repository contains a CodeQuest drop-in (`codequest/`). When working here, 
 ## Boot sequence (do this before any structural question)
 
 1. Read `codequest/CODEQUEST.md` — the master system prompt. Follow it.
-2. Check for `.codequest/graph.json`. If missing, run `./codequest/bin/codequest scan`
+2. Read `.codequest/config.json` for the audience setting (`beginner`/`professional`/`expert`,
+   `businessLens`). Adapt every explanation per CODEQUEST.md's audience rules. If missing,
+   assume `professional` (run `./codequest/bin/codequest init` to set it).
+3. Check for `.codequest/graph.json`. If missing, run `./codequest/bin/codequest scan`
    (Node 18+, zero deps, offline) to build the deterministic module graph.
-3. Ground every structural claim (imports, dependents, call chains) in the analyzer output
+4. Ground every structural claim (imports, dependents, call chains) in the analyzer output
    or your own direct file reads. Never fabricate a code connection.
 
 ## Available slash prompts

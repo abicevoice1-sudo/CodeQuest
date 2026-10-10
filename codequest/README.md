@@ -14,7 +14,14 @@ cp -r codequest /path/to/your-repo/
 # 2. Scan the repo — zero dependencies, runs offline (Node 18+)
 cd /path/to/your-repo && ./codequest/bin/codequest scan
 
-# 3. Open the repo in VS Code, start Copilot agent mode, and run:
+# 3. Auto-configure your IDEs — detects VS Code, Cursor, Windsurf, Zed, …
+./codequest/bin/codequest setup
+
+# 4. Optional: set your audience for explanations
+./codequest/bin/codequest init --audience professional   # or beginner | expert
+./codequest/bin/codequest init --audience expert --business  # non-technical lens
+
+# 5. Open your IDE's AI agent and run:
 #    /codequest-onboard
 ```
 

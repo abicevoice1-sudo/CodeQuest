@@ -24,9 +24,31 @@ const EXT_LANG = {
   '.ts': 'typescript', '.tsx': 'typescript',
   '.py': 'python', '.go': 'go', '.java': 'java', '.rb': 'ruby', '.php': 'php',
 };
+// Non-code files the analyzer inventories (and shows in the repo map).
+const ASSET_KIND = {
+  '.json': 'config', '.yaml': 'config', '.yml': 'config', '.toml': 'config', '.ini': 'config',
+  '.md': 'doc', '.mdx': 'doc', '.rst': 'doc', '.txt': 'doc', '.pdf': 'doc',
+  '.png': 'image', '.jpg': 'image', '.jpeg': 'image', '.gif': 'image', '.svg': 'image',
+  '.webp': 'image', '.ico': 'image', '.bmp': 'image',
+  '.sql': 'data', '.csv': 'data', '.tsv': 'data',
+};
+const ASSET_BASENAMES = { // dotfiles / extensionless, matched on lowercase basename
+  'dockerfile': 'config', 'makefile': 'config', 'jenkinsfile': 'config',
+  '.env': 'config', '.env.local': 'config', '.env.example': 'config', '.env.production': 'config',
+};
+const ASSET_LAYER = { config: 'Config', doc: 'Doc', image: 'Asset', data: 'Data' };
 const MAX_FILE_BYTES = 512 * 1024;
 
 // ---------------------------------------------------------------- walking ---
+
+function fileKind(rel) {
+  const ext = path.extname(rel).toLowerCase();
+  if (EXT_LANG[ext]) return { kind: 'code', lang: EXT_LANG[ext] };
+  const base = path.basename(rel).toLowerCase();
+  if (ASSET_BASENAMES[base]) return { kind: ASSET_KIND[ext] || ASSET_BASENAMES[base] };
+  if (ASSET_KIND[ext]) return { kind: ASSET_KIND[ext] };
+  return null;
+}
 
 function walk(dir, root, out) {
   out = out || [];
@@ -40,16 +62,42 @@ function walk(dir, root, out) {
     const full = path.join(dir, e.name);
     if (e.isDirectory()) walk(full, root, out);
     else if (e.isFile()) {
-      const ext = path.extname(e.name).toLowerCase();
-      if (!EXT_LANG[ext]) continue;
+      const rel = path.relative(root, full);
+      if (!fileKind(rel)) continue;
       try {
         const st = fs.statSync(full);
         if (st.size > MAX_FILE_BYTES) continue;
+        out.push({ rel, size: st.size });
       } catch { continue; }
-      out.push(path.relative(root, full));
     }
   }
-  return out.sort();
+  out.sort((a, b) => (a.rel < b.rel ? -1 : 1));
+  return out;
+}
+
+function summarizeAsset(full, kind, ext) {
+  try {
+    if (kind === 'config' && ext === '.json') {
+      const obj = JSON.parse(fs.readFileSync(full, 'utf8'));
+      const keys = Object.keys(obj).slice(0, 8).join(', ');
+      return keys ? `keys: ${keys}` : 'empty object';
+    }
+    if ((kind === 'config' && (ext === '.yaml' || ext === '.yml')) || ext === '.toml') {
+      const keys = [...fs.readFileSync(full, 'utf8').matchAll(/^([A-Za-z_][\w-]*):/gm)]
+        .map(m => m[1]).slice(0, 8).join(', ');
+      return keys ? `keys: ${keys}` : '';
+    }
+    if (kind === 'doc' && (ext === '.md' || ext === '.mdx')) {
+      const heads = [...fs.readFileSync(full, 'utf8').matchAll(/^#{1,3}\s+(.+)$/gm)]
+        .map(m => m[1].trim()).slice(0, 5).join(' · ');
+      return heads || '';
+    }
+  } catch { /* binary or unparseable — fall through to size */ }
+  return '';
+}
+
+function fmtSize(bytes) {
+  return bytes < 1024 ? `${bytes} B` : `${(bytes / 1024).toFixed(1)} KB`;
 }
 
 // --------------------------------------------------------------- parsing ---
@@ -138,7 +186,7 @@ const PARSERS = { javascript: parseJS, typescript: parseJS, python: parsePy, go:
 
 // ------------------------------------------------------------- resolving ---
 
-const CANDIDATE_EXTS = ['', '.js', '.jsx', '.ts', '.tsx', '.mjs', '.cjs', '.py', '.go', '.java', '.rb', '.php'];
+const CANDIDATE_EXTS = ['', '.js', '.jsx', '.ts', '.tsx', '.mjs', '.cjs', '.py', '.go', '.java', '.rb', '.php', '.json'];
 
 function tryFile(root, p) {
   for (const ext of CANDIDATE_EXTS) {
@@ -154,9 +202,10 @@ function tryFile(root, p) {
 
 function resolveImport(root, fromRel, raw, lang, aliases, names) {
   if (raw.startsWith('.')) {
-    // Relative import, incl. python explicit-relative (`from . import x`, `from ..pkg import y`).
-    const dots = raw.match(/^\.+/)[0].length;
-    const rest = raw.slice(dots).replace(/\./g, '/');
+    // Relative import: ./x, ../x (JS/TS) and .mod, ..pkg, . (python explicit-relative).
+    const dots = raw.match(/^(\.+)/)[1].length;
+    let rest = raw.slice(dots);
+    rest = rest.startsWith('/') ? rest.slice(1) : rest.replace(/\./g, '/');
     let base = path.dirname(fromRel);
     for (let i = 1; i < dots; i++) base = path.dirname(base); // 1 dot = same dir
     if (rest) {
@@ -291,10 +340,21 @@ function buildGraph(root) {
       fs.existsSync(path.join(root, f))),
   };
   const modules = new Map();
-  for (const rel of files) {
-    const ext = path.extname(rel).toLowerCase();
-    const lang = EXT_LANG[ext];
+  for (const { rel, size } of files) {
+    const fk = fileKind(rel);
     const full = path.join(root, rel);
+    if (fk.kind !== 'code') {
+      // Asset: inventoried, never parsed. Shown in the repo map.
+      const ext = path.extname(rel).toLowerCase();
+      modules.set(rel, {
+        id: rel, path: rel, kind: fk.kind, lang: 'asset',
+        lines: 0, size, summary: summarizeAsset(full, fk.kind, ext),
+        exports: [], imports: [], isTest: false, isEntry: false,
+        layer: ASSET_LAYER[fk.kind], fanIn: 0, fanOut: 0,
+      });
+      continue;
+    }
+    const lang = fk.lang;
     const content = fs.readFileSync(full, 'utf8');
     const lines = content.split('\n');
     const parser = PARSERS[lang] || (() => ({ imports: [], exports: [] }));
@@ -302,7 +362,7 @@ function buildGraph(root) {
     const test = isTestFile(rel);
     const entry = !test && detectEntry(content, lang, rel, ctx);
     modules.set(rel, {
-      id: rel, path: rel, lang, lines: lines.length,
+      id: rel, path: rel, kind: 'code', lang, lines: lines.length,
       exports, isTest: test, isEntry: entry,
       layer: guessLayer(rel, entry, test),
       imports: imports.map(im => ({
@@ -333,8 +393,16 @@ function buildGraph(root) {
     m.risk = m.isTest ? 'LOW' : risk;
   }
   const cycles = findCycles([...modules.keys()], edges);
+  // Audience settings (see `codequest init`): prompts adapt explanations to it.
+  let audience = 'professional', businessLens = false;
+  try {
+    const cfg = JSON.parse(fs.readFileSync(path.join(root, '.codequest', 'config.json'), 'utf8'));
+    if (cfg.audience) audience = cfg.audience;
+    if (cfg.businessLens) businessLens = true;
+  } catch { /* no config — defaults */ }
   return {
     version: VERSION, root: path.resolve(root), generatedAt: new Date().toISOString(),
+    audience, businessLens,
     modules: [...modules.values()], edges, cycles,
   };
 }
@@ -429,6 +497,229 @@ function cmdDiff(oldInput, newInput, asJson, failOn) {
     out(L.join('\n'));
   }
   if (failures.length) process.exitCode = 1;
+}
+
+// ------------------------------------------------- environment setup ---
+
+function detectEnvironment() {
+  const os = require('os');
+  const { execSync } = require('child_process');
+  const platform = os.platform();
+  const home = os.homedir();
+  const ides = [], assistants = [], notes = [];
+  const hasBin = (name) => {
+    try {
+      execSync(platform === 'win32' ? `where ${name}` : `command -v ${name}`, { stdio: 'pipe' });
+      return true;
+    } catch { return false; }
+  };
+  const exists = (p) => { try { return fs.existsSync(p); } catch { return false; } };
+
+  // VS Code (+ Copilot / Tabnine via extensions)
+  const vscodeUser = platform === 'darwin' ? path.join(home, 'Library/Application Support/Code')
+    : platform === 'win32' ? path.join(process.env.APPDATA || '', 'Code')
+    : path.join(home, '.config/Code');
+  if (hasBin('code') || exists(vscodeUser)) {
+    ides.push({ id: 'vscode', name: 'VS Code' });
+    try {
+      const exts = fs.readdirSync(path.join(vscodeUser, 'extensions'));
+      if (exts.some(e => e.startsWith('github.copilot'))) {
+        assistants.push({ id: 'copilot', name: 'GitHub Copilot', via: 'VS Code' });
+      }
+      if (exts.some(e => e.toLowerCase().startsWith('tabnine'))) {
+        assistants.push({ id: 'tabnine', name: 'Tabnine', via: 'VS Code' });
+      }
+    } catch { /* no extensions dir */ }
+  }
+  if (hasBin('code-insiders')) ides.push({ id: 'vscode-insiders', name: 'VS Code Insiders' });
+  // Cursor (AI built in)
+  if (hasBin('cursor') || exists(path.join(home, '.cursor'))) {
+    ides.push({ id: 'cursor', name: 'Cursor' });
+    assistants.push({ id: 'cursor-ai', name: 'Cursor AI', via: 'built-in' });
+  }
+  // Windsurf (AI built in)
+  if (hasBin('windsurf') || exists(path.join(home, '.codeium'))) {
+    ides.push({ id: 'windsurf', name: 'Windsurf' });
+    assistants.push({ id: 'windsurf-ai', name: 'Windsurf AI', via: 'built-in' });
+  }
+  // Zed (AI built in)
+  if (hasBin('zed')) {
+    ides.push({ id: 'zed', name: 'Zed' });
+    assistants.push({ id: 'zed-ai', name: 'Zed AI', via: 'built-in' });
+  }
+  // JetBrains (AI Assistant / Junie read AGENTS.md)
+  const jb = platform === 'darwin'
+    ? path.join(home, 'Library/Application Support/JetBrains')
+    : path.join(home, '.config/JetBrains');
+  if (exists(jb) || hasBin('idea') || hasBin('pycharm') || hasBin('webstorm')) {
+    ides.push({ id: 'jetbrains', name: 'JetBrains IDEs' });
+    notes.push('JetBrains: AGENTS.md is picked up by AI Assistant / Junie automatically.');
+  }
+  // Neovim / Vim (no standard config — AGENTS.md is the bridge)
+  if (hasBin('nvim') || hasBin('vim')) {
+    ides.push({ id: 'neovim', name: 'Neovim/Vim' });
+    notes.push('Neovim/Vim: no standard agent-config location — AGENTS.md at repo root is read by most AI plugins.');
+  }
+  // Sublime
+  if (hasBin('subl')) ides.push({ id: 'sublime', name: 'Sublime Text' });
+  // Amazon Q CLI
+  if (hasBin('q')) assistants.push({ id: 'amazon-q', name: 'Amazon Q', via: 'CLI' });
+
+  if (!assistants.length) {
+    notes.push('No AI assistant detected — the pack is model-agnostic and works with any you install later.');
+  }
+  notes.push('The pack works with every model your assistant offers (GPT, Claude, Gemini…) — no model-specific setup.');
+  return { platform, ides, assistants, notes };
+}
+
+function copyMissing(src, dst) {
+  // Copy a file or directory tree, never overwriting existing files. Returns files written.
+  const written = [];
+  const st = fs.statSync(src);
+  if (st.isDirectory()) {
+    fs.mkdirSync(dst, { recursive: true });
+    for (const e of fs.readdirSync(src)) {
+      written.push(...copyMissing(path.join(src, e), path.join(dst, e)));
+    }
+  } else if (!fs.existsSync(dst)) {
+    fs.mkdirSync(path.dirname(dst), { recursive: true });
+    fs.copyFileSync(src, dst);
+    written.push(path.relative(process.cwd(), dst));
+  }
+  return written;
+}
+
+function mergeMcpJson(dst, packExample) {
+  const server = {
+    type: 'stdio', command: 'node',
+    args: ['${workspaceFolder}/codequest/mcp-server.js'],
+  };
+  let cfg = { servers: {} };
+  let existed = fs.existsSync(dst);
+  if (existed) {
+    try { cfg = JSON.parse(fs.readFileSync(dst, 'utf8')); } catch { cfg = { servers: {} }; }
+    cfg.servers = cfg.servers || {};
+  }
+  const had = !!(cfg.servers && cfg.servers.codequest);
+  if (!had) {
+    cfg.servers.codequest = server;
+    fs.mkdirSync(path.dirname(dst), { recursive: true });
+    fs.writeFileSync(dst, JSON.stringify(cfg, null, 2) + '\n');
+  }
+  return had ? 'exists' : (existed ? 'merged' : 'created');
+}
+
+const CURSOR_RULE = `---
+description: CodeQuest repo intelligence — master prompt pointer
+globs:
+  - "**/*"
+alwaysApply: true
+---
+
+# CodeQuest (Cursor)
+
+You are **CodeQuest Core AI**. Read \`codequest/CODEQUEST.md\` — it is your contract —
+plus \`.codequest/config.json\` for the audience setting (beginner/professional/expert,
+businessLens) and adapt every explanation to it.
+
+Boot: run \`./codequest/bin/codequest scan\` (or read \`.codequest/graph.json\`);
+prefer the \`codequest_*\` MCP tools when configured; never fabricate a dependency —
+every structural claim carries a \`file:line\` receipt.
+`;
+
+const WINDSURF_RULE = `# CodeQuest (Windsurf)
+
+You are **CodeQuest Core AI**. Read \`codequest/CODEQUEST.md\` — it is your contract —
+plus \`.codequest/config.json\` for the audience setting (beginner/professional/expert,
+businessLens) and adapt every explanation to it.
+
+Boot: run \`./codequest/bin/codequest scan\` (or read \`.codequest/graph.json\`);
+prefer the \`codequest_*\` MCP tools when configured; never fabricate a dependency —
+every structural claim carries a \`file:line\` receipt.
+`;
+
+function cmdSetup(dir, packDir, asJson, flags) {
+  const env = detectEnvironment();
+  const ALL = ['vscode', 'cursor', 'windsurf'];
+  let targets = flags.all ? ALL.slice()
+    : flags.ide ? String(flags.ide).split(',').map(s => s.trim()).filter(Boolean)
+    : env.ides.map(d => d.id).filter(id => ALL.includes(id) || id === 'vscode-insiders');
+  if (flags.ide) targets = targets.filter(t => ALL.includes(t) || t === 'vscode-insiders');
+  const written = [], skipped = [];
+  const put = (repoRel, content) => {
+    const full = path.join(dir, repoRel);
+    if (flags['dry-run']) { written.push(repoRel + '  (dry-run)'); return; }
+    if (fs.existsSync(full)) { skipped.push(repoRel); return; }
+    fs.mkdirSync(path.dirname(full), { recursive: true });
+    fs.writeFileSync(full, content);
+    written.push(repoRel);
+  };
+
+  // 1. Root AGENTS.md — universal bridge (Copilot, Cursor, Junie, Amp, Zed, …).
+  const packAgents = path.join(packDir, 'AGENTS.md');
+  if (fs.existsSync(packAgents)) {
+    if (flags['dry-run']) written.push('AGENTS.md  (dry-run)');
+    else if (!fs.existsSync(path.join(dir, 'AGENTS.md'))) {
+      fs.copyFileSync(packAgents, path.join(dir, 'AGENTS.md'));
+      written.push('AGENTS.md');
+    } else skipped.push('AGENTS.md');
+  }
+
+  // 2. Per-IDE configuration.
+  const mcpStates = [];
+  if (targets.includes('vscode') || targets.includes('vscode-insiders')) {
+    for (const f of ['muse-instructions.md', 'agents/codequest.agent.md',
+        'instructions/codequest.instructions.md']) {
+      const src = path.join(packDir, '.github', ...f.split('/'));
+      if (fs.existsSync(src)) {
+        const rel = path.join('.github', ...f.split('/'));
+        if (flags['dry-run']) written.push(rel + '  (dry-run)');
+        else written.push(...copyMissing(src, path.join(dir, rel)));
+      }
+    }
+    const promptsSrc = path.join(packDir, '.github', 'prompts');
+    if (fs.existsSync(promptsSrc)) {
+      if (flags['dry-run']) written.push('.github/prompts/  (dry-run)');
+      else for (const f of copyMissing(promptsSrc, path.join(dir, '.github', 'prompts'))) written.push(f);
+    }
+    if (!flags['dry-run']) mcpStates.push('.vscode/mcp.json: ' + mergeMcpJson(path.join(dir, '.vscode', 'mcp.json'), packDir));
+    else written.push('.vscode/mcp.json  (dry-run)');
+  }
+  if (targets.includes('cursor')) {
+    put('.cursor/rules/codequest.mdc', CURSOR_RULE);
+    if (!flags['dry-run']) mcpStates.push('.cursor/mcp.json: ' + mergeMcpJson(path.join(dir, '.cursor', 'mcp.json'), packDir));
+    else written.push('.cursor/mcp.json  (dry-run)');
+  }
+  if (targets.includes('windsurf')) {
+    put('.windsurf/rules/codequest.md', WINDSURF_RULE);
+    if (!flags['dry-run']) mcpStates.push('.windsurf/mcp.json: ' + mergeMcpJson(path.join(dir, '.windsurf', 'mcp.json'), packDir));
+    else written.push('.windsurf/mcp.json  (dry-run)');
+  }
+
+  const setupRecord = {
+    at: new Date().toISOString(), version: VERSION,
+    detected: { ides: env.ides, assistants: env.assistants },
+    configured: targets, written: written.filter(w => !w.includes('dry-run')),
+    notes: env.notes,
+  };
+  if (!flags['dry-run']) {
+    fs.mkdirSync(path.join(dir, '.codequest'), { recursive: true });
+    fs.writeFileSync(path.join(dir, '.codequest', 'setup.json'), JSON.stringify(setupRecord, null, 2));
+  }
+
+  if (asJson) return out(JSON.stringify(setupRecord, null, 2));
+  const L = ['# CodeQuest setup', ''];
+  L.push(`Detected IDEs: ${env.ides.length ? env.ides.map(i => i.name).join(', ') : '(none)'}`);
+  L.push(`Detected AI assistants: ${env.assistants.length ? env.assistants.map(a => `${a.name} (${a.via})`).join(', ') : '(none)'}`);
+  L.push(`Configured for: ${targets.length ? targets.join(', ') : '(none — use --all or --ide)'}`);
+  L.push('');
+  L.push(`Wrote ${written.length} file(s):`);
+  written.slice(0, 25).forEach(w => L.push(`  + ${w}`));
+  if (written.length > 25) L.push(`  …and ${written.length - 25} more`);
+  if (skipped.length) { L.push('', `Skipped (already exist): ${skipped.slice(0, 10).join(', ')}${skipped.length > 10 ? '…' : ''}`); }
+  if (mcpStates.length) { L.push('', 'MCP:'); mcpStates.forEach(s => L.push(`  ${s}`)); }
+  if (env.notes.length) { L.push('', 'Notes:'); env.notes.forEach(n => L.push(`  - ${n}`)); }
+  return out(L.join('\n'));
 }
 
 function dependentsOf(g, id, maxDepth) {
@@ -534,12 +825,15 @@ function riskTag(r) { return `[${r} RISK]`; }
 function repoMapMd(g) {
   const L = [];
   const langs = {};
-  g.modules.forEach(m => { langs[m.lang] = (langs[m.lang] || 0) + 1; });
-  const central = [...g.modules].sort((a, b) => b.fanIn - a.fanIn).slice(0, 10);
-  const entries = g.modules.filter(m => m.isEntry);
+  const code = g.modules.filter(m => m.kind === 'code' || !m.kind);
+  const assets = g.modules.filter(m => m.kind && m.kind !== 'code');
+  code.forEach(m => { langs[m.lang] = (langs[m.lang] || 0) + 1; });
+  const central = [...code].sort((a, b) => b.fanIn - a.fanIn).slice(0, 10);
+  const entries = code.filter(m => m.isEntry);
   L.push(`# CodeQuest repo map`, '');
-  L.push(`- Modules: ${g.modules.length}   Edges: ${g.edges.length}`);
+  L.push(`- Modules: ${g.modules.length} (${code.length} code, ${assets.length} assets)   Edges: ${g.edges.length}`);
   L.push(`- Languages: ${Object.entries(langs).map(([k, v]) => `${k} (${v})`).join(', ')}`);
+  L.push(`- Audience: ${g.audience || 'professional'}${g.businessLens ? ' · business lens ON' : ''}`);
   L.push(`- Generated: ${g.generatedAt} (codequest ${g.version}, deterministic static scan)`, '');
   L.push('## Entry points');
   L.push(entries.length ? entries.map(m => `- ${m.id} (${m.lang})`).join('\n') : '- (none detected)');
@@ -550,7 +844,16 @@ function repoMapMd(g) {
   L.push('', '## All modules');
   L.push('| Module | Lang | Layer | Exports | In/Out | Risk |');
   L.push('|---|---|---|---|---|---|');
-  g.modules.forEach(m => L.push(`| ${m.id} | ${m.lang} | ${m.layer} | ${m.exports.length} | ${m.fanIn}/${m.fanOut} | ${riskTag(m.risk)} |`));
+  code.forEach(m => L.push(`| ${m.id} | ${m.lang} | ${m.layer} | ${m.exports.length} | ${m.fanIn}/${m.fanOut} | ${riskTag(m.risk)} |`));
+  if (assets.length) {
+    L.push('', `## Assets, configs & docs (${assets.length})`);
+    L.push('| Path | Kind | Detail |');
+    L.push('|---|---|---|');
+    assets.forEach(m => {
+      const detail = m.summary || fmtSize(m.size || 0);
+      L.push(`| ${m.id} | ${m.kind} | ${detail} |`);
+    });
+  }
   if (g.cycles && g.cycles.length) {
     L.push('', `## Circular imports (${g.cycles.length})`);
     g.cycles.forEach(c => L.push(`- ${c.join(' → ')}`));
@@ -569,10 +872,26 @@ function out(s) { console.log(s); }
 
 function main() {
   const rawArgs = process.argv.slice(2);
-  const asJson = rawArgs.includes('--json');
-  const failOnArg = rawArgs.find(a => a.startsWith('--fail-on'));
-  const failOn = failOnArg ? failOnArg.split('=')[1].split(',') : ['critical', 'cycles'];
-  const args = rawArgs.filter(a => a !== '--json' && !a.startsWith('--fail-on'));
+  // Clean arg parsing: positionals vs --flags (both --flag=value and --flag value).
+  const positionals = [];
+  const flags = {};
+  for (let i = 0; i < rawArgs.length; i++) {
+    const a = rawArgs[i];
+    if (a === '--json' || a === '--business' || a === '--force' || a === '--dry-run' || a === '--all') {
+      flags[a.slice(2)] = true; continue;
+    }
+    if (a.startsWith('--')) {
+      const eq = a.indexOf('=');
+      if (eq >= 0) flags[a.slice(2, eq)] = a.slice(eq + 1);
+      else { flags[a.slice(2)] = rawArgs[i + 1]; i++; }
+      continue;
+    }
+    positionals.push(a);
+  }
+  const asJson = !!flags.json;
+  const failOn = (flags['fail-on'] || 'critical,cycles').split(',');
+  const args = positionals;
+  // NOTE: flag *values* (e.g. "beginner" after --audience) are filtered by dirOf-safe logic below.
   const cmd = args[0];
 
   if (!cmd || cmd === '--help' || cmd === '-h' || cmd === 'help') {
@@ -585,9 +904,13 @@ function main() {
       '  blast-radius <file> [dir]',
       '  story <entry-file> [dir]',
       '  diff <old> <new>            architecture drift: old/new are dirs or graph.json paths',
+      '  init [dir]                 write .codequest/config.json (audience + perspective)',
+      '  setup [dir]                detect local IDEs/AI assistants and configure each one',
       '',
       'Add --json for machine-readable output.',
       'diff honors --fail-on <list>: comma list of critical,cycles,escalations (default: critical,cycles).',
+      'init honors --audience <beginner|professional|expert> and --business (non-technical lens).',
+      'setup honors --dry-run, --all, --ide <vscode,cursor,windsurf>.',
     ].join('\n'));
   }
 
@@ -637,6 +960,31 @@ function main() {
   if (cmd === 'diff') {
     if (!args[1] || !args[2]) return fail('usage: codequest diff <old> <new>  (dirs or graph.json paths)', asJson);
     return cmdDiff(args[1], args[2], asJson, failOn);
+  }
+  if (cmd === 'init') {
+    const dir = dirOf(1);
+    const audience = flags.audience || 'professional';
+    if (!['beginner', 'professional', 'expert'].includes(audience)) {
+      return fail('audience must be beginner, professional, or expert', asJson);
+    }
+    const businessLens = !!flags.business;
+    const cq = path.join(dir, '.codequest');
+    fs.mkdirSync(cq, { recursive: true });
+    const p = path.join(cq, 'config.json');
+    if (fs.existsSync(p) && !rawArgs.includes('--force')) {
+      return fail(`config exists at ${p} — edit it directly or re-run with --force`, asJson);
+    }
+    const cfg = {
+      audience, businessLens, version: VERSION,
+      _comment: 'audience: beginner | professional | expert. businessLens: true = non-technical business perspective.',
+    };
+    fs.writeFileSync(p, JSON.stringify(cfg, null, 2) + '\n');
+    return out(asJson ? JSON.stringify(cfg, null, 2)
+      : `codequest: wrote ${p}\n  audience=${audience}  businessLens=${businessLens}\n  Copilot adapts explanations to this. Re-run scan to refresh the map.`);
+  }
+  if (cmd === 'setup') {
+    const packDir = path.join(__dirname, '..'); // codequest/bin/codequest → codequest/
+    return cmdSetup(dirOf(1), packDir, asJson, flags);
   }
   return fail(`unknown command "${cmd}" — try --help`, asJson);
 }

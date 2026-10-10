@@ -174,3 +174,62 @@ test('frameworks: entry points detected across 7 frameworks', () => {
   assert.equal(byId.get('api/urls.py').layer, 'Entry'); // entry outranks route
   assert.equal(byId.get('api/views.py').layer, 'API Route');
 });
+
+test('assets: configs, docs, images, data inventoried and shown', () => {
+  const dir = tmp();
+  fs.writeFileSync(path.join(dir, 'app.json'), '{"name":"x","version":"1"}');
+  fs.writeFileSync(path.join(dir, 'README.md'), '# T\n\n## A\n');
+  fs.writeFileSync(path.join(dir, 'logo.png'), 'PNGDATA');
+  fs.writeFileSync(path.join(dir, '.env'), 'K=v\n');
+  fs.writeFileSync(path.join(dir, 'q.sql'), 'SELECT 1;\n');
+  const g = scan(dir);
+  const byId = new Map(g.modules.map(m => [m.id, m]));
+  assert.equal(byId.get('app.json').kind, 'config');
+  assert.equal(byId.get('app.json').summary, 'keys: name, version');
+  assert.equal(byId.get('README.md').kind, 'doc');
+  assert.ok(byId.get('README.md').summary.includes('A'));
+  assert.equal(byId.get('logo.png').kind, 'image');
+  assert.equal(byId.get('.env').layer, 'Config');
+  assert.equal(byId.get('q.sql').kind, 'data');
+  const map = fs.readFileSync(path.join(dir, '.codequest', 'repo-map.md'), 'utf8');
+  assert.ok(map.includes('Assets, configs & docs (5)'));
+});
+
+test('assets: js importing a json config creates an edge', () => {
+  const dir = tmp();
+  fs.writeFileSync(path.join(dir, 'c.json'), '{"n":1}');
+  fs.writeFileSync(path.join(dir, 'a.js'), 'const c = require("./c.json");\nmodule.exports = c;\n');
+  const g = scan(dir);
+  assert.ok(new Set(g.edges.map(e => e.from + '→' + e.to)).has('a.js→c.json'));
+});
+
+test('init: writes config; scan picks up audience', () => {
+  const dir = tmp();
+  execFileSync(process.execPath, [BIN, 'init', dir, '--audience', 'expert', '--business'], { stdio: 'pipe' });
+  const cfg = JSON.parse(fs.readFileSync(path.join(dir, '.codequest', 'config.json'), 'utf8'));
+  assert.equal(cfg.audience, 'expert');
+  assert.equal(cfg.businessLens, true);
+  const g = scan(dir);
+  assert.equal(g.audience, 'expert');
+  assert.equal(g.businessLens, true);
+});
+
+test('setup: detects IDEs/assistants and writes per-IDE config', () => {
+  const dir = tmp(), home = tmp(), bin = tmp();
+  fs.mkdirSync(path.join(home, '.config', 'Code', 'extensions', 'github.copilot-chat-1.0.0'), { recursive: true });
+  for (const n of ['code', 'cursor']) {
+    fs.writeFileSync(path.join(bin, n), '#!/bin/sh\nexit 0\n', { mode: 0o755 });
+  }
+  const env = { ...process.env, HOME: home, PATH: bin + ':' + process.env.PATH };
+  const out = execFileSync(process.execPath, [BIN, 'setup', dir, '--json'], { encoding: 'utf8', env });
+  const rec = JSON.parse(out);
+  assert.ok(rec.detected.ides.some(i => i.id === 'vscode'), 'detects vscode');
+  assert.ok(rec.detected.ides.some(i => i.id === 'cursor'), 'detects cursor');
+  assert.ok(rec.detected.assistants.some(a => a.id === 'copilot'), 'detects copilot');
+  assert.ok(fs.existsSync(path.join(dir, '.github', 'muse-instructions.md')));
+  assert.ok(fs.existsSync(path.join(dir, '.cursor', 'rules', 'codequest.mdc')));
+  assert.ok(fs.existsSync(path.join(dir, 'AGENTS.md')));
+  const mcp = JSON.parse(fs.readFileSync(path.join(dir, '.vscode', 'mcp.json'), 'utf8'));
+  assert.ok(mcp.servers.codequest, 'mcp server wired');
+  assert.ok(fs.existsSync(path.join(dir, '.codequest', 'setup.json')));
+});

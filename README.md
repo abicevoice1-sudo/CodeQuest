@@ -13,7 +13,13 @@ cp -r codequest /path/to/your-repo/
 # 2. Scan it — zero dependencies, offline (Node 18+)
 cd /path/to/your-repo && ./codequest/bin/codequest scan
 
-# 3. In VS Code, open Copilot agent mode and run:
+# 3. Auto-configure your IDEs (detects VS Code, Cursor, Windsurf, Zed, …)
+./codequest/bin/codequest setup
+
+# 4. Optional: set your audience (beginner/professional/expert, business lens)
+./codequest/bin/codequest init --audience professional
+
+# 5. In your IDE, open the AI agent and run:
 /codequest-onboard
 ```
 
@@ -106,6 +112,8 @@ and see `examples/outputs/` for what the analyzer produces.
 - `docs/MCP.md` — wire any API via MCP
 - `docs/PARSER.md` — parser capabilities & honest limits
 - `docs/ADOPTION.md` — the 10-team trial playbook
+- `docs/IDE_SUPPORT.md` — IDE & AI assistant support matrix
+- `docs/ROADMAP.md` — gap analysis → top-in-the-world, phased
 
 ## Privacy
 
