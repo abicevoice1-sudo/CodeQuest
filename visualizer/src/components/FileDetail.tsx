@@ -22,6 +22,7 @@ export function FileDetail({
   onListen,
   onBlast,
   onDiagram,
+  onShare,
   onSelectFile,
   downstream,
   upstream,
@@ -39,6 +40,7 @@ export function FileDetail({
   onListen: () => void;
   onBlast: () => void;
   onDiagram: () => void;
+  onShare: () => void;
   onSelectFile: (id: string) => void;
   downstream: GraphEdge[];
   upstream: GraphEdge[];
@@ -88,6 +90,7 @@ export function FileDetail({
           <button className="fd-action-btn" title="Listen — hear what this file does, out loud" onClick={onListen}><span>🔊</span><span className="fd-action-label">Listen</span></button>
           <button className="fd-action-btn" title="Diagram — see this file and everything it connects to" onClick={onDiagram}><span>◈</span><span className="fd-action-label">Diagram</span></button>
           <button className="fd-action-btn" title="Blast radius — see what breaks if you change this file" onClick={onBlast}><span>◉</span><span className="fd-action-label">Blast</span></button>
+          <button className="fd-action-btn" title="Share — copy a link to this file's view" onClick={onShare}><span>🔗</span><span className="fd-action-label">Share</span></button>
         </div>
       </div>
 

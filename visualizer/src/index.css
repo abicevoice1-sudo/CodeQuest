@@ -1201,3 +1201,39 @@ details.filters section { padding: 0 12px 12px; }
 .guide-figma { margin-top: 18px; }
 .guide-figma h3 { font-size: 15px; margin: 0 0 4px; }
 .guide-figma .guide-sub { margin: 0 0 10px; }
+
+/* ---------------- Settings tabs ---------------- */
+.settings-shell { display: flex; padding: 0; overflow: hidden; max-height: 82vh; }
+.settings-nav {
+  flex: 0 0 190px; padding: 20px 12px; border-right: 1px solid var(--border);
+  background: var(--bg-inset); display: flex; flex-direction: column; gap: 4px;
+}
+.settings-nav h3 { margin: 0 0 12px 8px; font-size: 16px; }
+.settings-nav-btn {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 10px 12px; border-radius: 8px; border: 0; background: transparent;
+  color: var(--text-2); font-size: 14px; cursor: pointer; text-align: left;
+}
+.settings-nav-btn:hover { background: var(--bg); color: var(--text); }
+.settings-nav-btn.on { background: var(--bg); color: var(--text); font-weight: 600; }
+.settings-badge {
+  font-size: 11px; font-weight: 700; background: var(--accent); color: #fff;
+  border-radius: 10px; padding: 1px 7px;
+}
+.settings-body { flex: 1; padding: 22px 24px; overflow-y: auto; min-width: 0; }
+.integration-card {
+  border: 1px solid var(--border-strong); border-radius: 12px;
+  padding: 14px 16px; margin-bottom: 14px; background: var(--bg);
+}
+.integration-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
+.integration-name { font-size: 15px; font-weight: 700; }
+.integration-status { font-size: 12px; color: var(--text-faint); }
+.integration-status.on { color: #86efac; }
+.toast.share { background: #0e7490; }
+@media (max-width: 640px) {
+  .settings-shell { flex-direction: column; }
+  .settings-nav { flex: none; flex-direction: row; overflow-x: auto; border-right: 0; border-bottom: 1px solid var(--border); padding: 12px; }
+  .settings-nav h3 { display: none; }
+  .settings-nav-btn { white-space: nowrap; }
+}
+.fd-loading { padding: 40px; text-align: center; color: var(--text-faint); }

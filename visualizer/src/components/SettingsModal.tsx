@@ -32,6 +32,7 @@ export function SettingsModal({
   const [fs, setFs] = useState(loadFigmaSettings());
   const [figmaTest, setFigmaTest] = useState('');
   const [figmaTesting, setFigmaTesting] = useState(false);
+  const [tab, setTab] = useState<'appearance' | 'voice' | 'integrations' | 'ai'>('appearance');
 
   useEffect(() => { getVoices().then(setVoices); }, []);
   const voiceGroups = useMemo(() => groupVoices(voices), [voices]);
@@ -103,148 +104,202 @@ export function SettingsModal({
     setTimeout(() => setCopiedKey(''), 1500);
   };
 
+  const TABS: { id: 'appearance' | 'voice' | 'integrations' | 'ai'; label: string; badge?: number }[] = [
+    { id: 'appearance', label: '🎨 Appearance' },
+    { id: 'voice', label: '🔊 Voice' },
+    { id: 'integrations', label: '🔌 Integrations', badge: (jiraConfigured(js) ? 1 : 0) + (figmaConfigured(fs) ? 1 : 0) || undefined },
+    { id: 'ai', label: '🤖 AI explain' },
+  ];
+
   return (
     <div className="modal-backdrop" onClick={onClose}>
-      <div className="modal modal-wide" onClick={(e) => e.stopPropagation()}>
-        <h3>⚙ Settings</h3>
-
-        <h4 className="modal-sec">Appearance</h4>
-        <div className="theme-grid">
-          {THEMES.map((t) => (
+      <div className="modal modal-wide settings-shell" onClick={(e) => e.stopPropagation()}>
+        <nav className="settings-nav">
+          <h3>⚙ Settings</h3>
+          {TABS.map((t) => (
             <button
               key={t.id}
-              className={`theme-opt${theme === t.id ? ' on' : ''}`}
-              onClick={() => setTheme(t.id)}
+              className={`settings-nav-btn${tab === t.id ? ' on' : ''}`}
+              onClick={() => setTab(t.id)}
             >
-              <span className="theme-swatch" data-swatch={t.id} />
-              <span className="prof-opt-name">{t.label}</span>
-              <span className="prof-opt-hint">{t.hint}</span>
+              {t.label}
+              {t.badge ? <span className="settings-badge">{t.badge}</span> : null}
             </button>
           ))}
-        </div>
-
-        <h4 className="modal-sec">Voice</h4>
-        <p className="modal-sub">
-          The voice that reads explanations aloud. Free, on-device — no API key needed.
-        </p>
-        <label>Voice
-          <select
-            value={vs.voiceURI}
-            onChange={(e) => pickVoice(e.target.value)}
-          >
-            <option value="">★ Best available (auto)</option>
-            {voiceGroups.map((g) => (
-              <optgroup key={g.label} label={g.label}>
-                {g.voices.map((v) => (
-                  <option key={v.voiceURI} value={v.voiceURI}>
-                    {v.name}{v.localService ? '' : ' · network'}
-                  </option>
+        </nav>
+        <div className="settings-body">
+          {tab === 'appearance' && (
+            <>
+              <h4 className="modal-sec">Appearance</h4>
+              <div className="theme-grid">
+                {THEMES.map((t) => (
+                  <button
+                    key={t.id}
+                    className={`theme-opt${theme === t.id ? ' on' : ''}`}
+                    onClick={() => setTheme(t.id)}
+                  >
+                    <span className="theme-swatch" data-swatch={t.id} />
+                    <span className="prof-opt-name">{t.label}</span>
+                    <span className="prof-opt-hint">{t.hint}</span>
+                  </button>
                 ))}
-              </optgroup>
-            ))}
-          </select>
-        </label>
-        {!voices.length && (
-          <p className="modal-sub">Loading system voices…</p>
-        )}
-        <label>Speed: {vs.rate.toFixed(2)}×
-          <input
-            type="range" min={0.5} max={2} step={0.05}
-            value={vs.rate}
-            onChange={(e) => setVs({ ...vs, rate: parseFloat(e.target.value) })}
-          />
-        </label>
-        <label>Pitch: {vs.pitch.toFixed(2)}
-          <input
-            type="range" min={0} max={2} step={0.05}
-            value={vs.pitch}
-            onChange={(e) => setVs({ ...vs, pitch: parseFloat(e.target.value) })}
-          />
-        </label>
-        <button className="ghost small" onClick={previewVoice} style={{ marginBottom: 10 }}>
-          🔊 Preview voice
-        </button>
-
-        <h4 className="modal-sec">Jira — business context</h4>
-        <p className="modal-sub">
-          Connect Jira to link code to tickets. Business people see <em>why</em> a file
-          exists; devs see the story, priority, and who's waiting on it. Credentials stay in your browser.
-        </p>
-        <label>Jira URL
-          <input value={js.url} onChange={(e) => setJs({ ...js, url: e.target.value })} placeholder="https://yourcompany.atlassian.net" />
-        </label>
-        <label>Email
-          <input value={js.email} onChange={(e) => setJs({ ...js, email: e.target.value })} placeholder="you@company.com" />
-        </label>
-        <label>API token
-          <input type="password" value={js.apiToken} onChange={(e) => setJs({ ...js, apiToken: e.target.value })} placeholder="Create at Atlassian → Account → Security" />
-        </label>
-        <label>Project key <span className="modal-opt">(optional)</span>
-          <input value={js.projectKey} onChange={(e) => setJs({ ...js, projectKey: e.target.value.toUpperCase() })} placeholder="PROJ" />
-        </label>
-        <button className="ghost small" onClick={testJira} disabled={jiraTesting} style={{ marginBottom: 10 }}>
-          {jiraTesting ? 'Testing…' : jiraConfigured(js) ? '🔗 Test connection' : '🔗 Connect Jira'}
-        </button>
-        {jiraTest && <p className="modal-sub">{jiraTest}</p>}
-
-        <h4 className="modal-sec">Figma — design context</h4>
-        <p className="modal-sub">
-          Attach Figma design files so anyone viewing the code can see the designs
-          too — business people see what the product looks like, devs see which
-          frames match the file they're reading. Token stays in your browser.
-        </p>
-        <label>Personal access token
-          <input type="password" value={fs.accessToken} onChange={(e) => setFs({ ...fs, accessToken: e.target.value })} placeholder="Create at Figma → Settings → Personal access tokens" />
-        </label>
-        <label>Design file URLs <span className="modal-opt">(one per line)</span>
-          <textarea
-            value={fs.fileUrls.join('\n')}
-            onChange={(e) => setFs({ ...fs, fileUrls: e.target.value.split('\n') })}
-            placeholder={'https://www.figma.com/design/AbC123/My-App\nhttps://www.figma.com/design/XyZ789/Admin-Panel'}
-            rows={3}
-            className="figma-urls"
-          />
-        </label>
-        <button className="ghost small" onClick={testFigma} disabled={figmaTesting} style={{ marginBottom: 10 }}>
-          {figmaTesting ? 'Testing…' : figmaConfigured(fs) ? '🎨 Test connection' : '🎨 Connect Figma'}
-        </button>
-        {figmaTest && <p className="modal-sub">{figmaTest}</p>}
-
-        <h4 className="modal-sec">AI explain</h4>
-        <p className="modal-sub">
-          File explanations call an LLM with your own key. The key never leaves your browser
-          except to the endpoint below. Any OpenAI-compatible API works.
-        </p>
-        <button className="ghost small" onClick={() => setPermAsk(true)} style={{ marginBottom: 10 }}>
-          📥 Import key from .env
-        </button>
-        {envError && <p className="guide-err">{envError}</p>}
-        {matches && matches.length > 0 && (
-          <div className="guide-envmatches" style={{ marginBottom: 10 }}>
-            {matches.map((m) => (
-              <div className="guide-envmatch" key={m.key}>
-                <code>{m.key}</code>
-                <span className="guide-masked">{m.masked}</span>
-                <button className="guide-copy" onClick={() => useMatch(m)}>
-                  {copiedKey === m.key ? '✓ name copied' : 'Copy name'}
-                </button>
               </div>
-            ))}
-            <p className="modal-sub">Copy the real value from your .env into the key field below — only masked previews are shown here.</p>
+            </>
+          )}
+
+          {tab === 'voice' && (
+            <>
+              <h4 className="modal-sec">Voice</h4>
+              <p className="modal-sub">
+                The voice that reads explanations aloud. Free, on-device — no API key needed.
+              </p>
+              <label>Voice
+                <select
+                  value={vs.voiceURI}
+                  onChange={(e) => pickVoice(e.target.value)}
+                >
+                  <option value="">★ Best available (auto)</option>
+                  {voiceGroups.map((g) => (
+                    <optgroup key={g.label} label={g.label}>
+                      {g.voices.map((v) => (
+                        <option key={v.voiceURI} value={v.voiceURI}>
+                          {v.name}{v.localService ? '' : ' · network'}
+                        </option>
+                      ))}
+                    </optgroup>
+                  ))}
+                </select>
+              </label>
+              {!voices.length && (
+                <p className="modal-sub">Loading system voices…</p>
+              )}
+              <label>Speed: {vs.rate.toFixed(2)}×
+                <input
+                  type="range" min={0.5} max={2} step={0.05}
+                  value={vs.rate}
+                  onChange={(e) => setVs({ ...vs, rate: parseFloat(e.target.value) })}
+                />
+              </label>
+              <label>Pitch: {vs.pitch.toFixed(2)}
+                <input
+                  type="range" min={0} max={2} step={0.05}
+                  value={vs.pitch}
+                  onChange={(e) => setVs({ ...vs, pitch: parseFloat(e.target.value) })}
+                />
+              </label>
+              <button className="ghost small" onClick={previewVoice} style={{ marginBottom: 10 }}>
+                🔊 Preview voice
+              </button>
+            </>
+          )}
+
+          {tab === 'integrations' && (
+            <>
+              <h4 className="modal-sec">Integrations</h4>
+              <p className="modal-sub">
+                Connect the tools your team already uses. CodeQuest surfaces their
+                context right where you're reading code. Credentials stay in your browser.
+              </p>
+
+              <div className="integration-card">
+                <div className="integration-head">
+                  <span className="integration-name">📋 Jira</span>
+                  <span className={`integration-status${jiraConfigured(js) ? ' on' : ''}`}>
+                    {jiraConfigured(js) ? '● Connected' : '○ Not connected'}
+                  </span>
+                </div>
+                <p className="modal-sub">
+                  Link code to tickets — business people see <em>why</em> a file exists.
+                </p>
+                <label>Jira URL
+                  <input value={js.url} onChange={(e) => setJs({ ...js, url: e.target.value })} placeholder="https://yourcompany.atlassian.net" />
+                </label>
+                <label>Email
+                  <input value={js.email} onChange={(e) => setJs({ ...js, email: e.target.value })} placeholder="you@company.com" />
+                </label>
+                <label>API token
+                  <input type="password" value={js.apiToken} onChange={(e) => setJs({ ...js, apiToken: e.target.value })} placeholder="Create at Atlassian → Account → Security" />
+                </label>
+                <label>Project key <span className="modal-opt">(optional)</span>
+                  <input value={js.projectKey} onChange={(e) => setJs({ ...js, projectKey: e.target.value.toUpperCase() })} placeholder="PROJ" />
+                </label>
+                <button className="ghost small" onClick={testJira} disabled={jiraTesting} style={{ marginBottom: 10 }}>
+                  {jiraTesting ? 'Testing…' : jiraConfigured(js) ? '🔗 Test connection' : '🔗 Connect Jira'}
+                </button>
+                {jiraTest && <p className="modal-sub">{jiraTest}</p>}
+              </div>
+
+              <div className="integration-card">
+                <div className="integration-head">
+                  <span className="integration-name">🎨 Figma</span>
+                  <span className={`integration-status${figmaConfigured(fs) ? ' on' : ''}`}>
+                    {figmaConfigured(fs) ? '● Connected' : '○ Not connected'}
+                  </span>
+                </div>
+                <p className="modal-sub">
+                  Attach design files — anyone viewing code sees the designs too.
+                </p>
+                <label>Personal access token
+                  <input type="password" value={fs.accessToken} onChange={(e) => setFs({ ...fs, accessToken: e.target.value })} placeholder="Create at Figma → Settings → Personal access tokens" />
+                </label>
+                <label>Design file URLs <span className="modal-opt">(one per line)</span>
+                  <textarea
+                    value={fs.fileUrls.join('\n')}
+                    onChange={(e) => setFs({ ...fs, fileUrls: e.target.value.split('\n') })}
+                    placeholder={'https://www.figma.com/design/AbC123/My-App\nhttps://www.figma.com/design/XyZ789/Admin-Panel'}
+                    rows={3}
+                    className="figma-urls"
+                  />
+                </label>
+                <button className="ghost small" onClick={testFigma} disabled={figmaTesting} style={{ marginBottom: 10 }}>
+                  {figmaTesting ? 'Testing…' : figmaConfigured(fs) ? '🎨 Test connection' : '🎨 Connect Figma'}
+                </button>
+                {figmaTest && <p className="modal-sub">{figmaTest}</p>}
+              </div>
+            </>
+          )}
+
+          {tab === 'ai' && (
+            <>
+              <h4 className="modal-sec">AI explain</h4>
+              <p className="modal-sub">
+                File explanations call an LLM with your own key. The key never leaves your browser
+                except to the endpoint below. Any OpenAI-compatible API works.
+              </p>
+              <button className="ghost small" onClick={() => setPermAsk(true)} style={{ marginBottom: 10 }}>
+                📥 Import key from .env
+              </button>
+              {envError && <p className="guide-err">{envError}</p>}
+              {matches && matches.length > 0 && (
+                <div className="guide-envmatches" style={{ marginBottom: 10 }}>
+                  {matches.map((m) => (
+                    <div className="guide-envmatch" key={m.key}>
+                      <code>{m.key}</code>
+                      <span className="guide-masked">{m.masked}</span>
+                      <button className="guide-copy" onClick={() => useMatch(m)}>
+                        {copiedKey === m.key ? '✓ name copied' : 'Copy name'}
+                      </button>
+                    </div>
+                  ))}
+                  <p className="modal-sub">Copy the real value from your .env into the key field below — only masked previews are shown here.</p>
+                </div>
+              )}
+              <label>Endpoint
+                <input value={s.endpoint} onChange={(e) => setS({ ...s, endpoint: e.target.value })} placeholder="https://api.openai.com/v1" />
+              </label>
+              <label>API key
+                <input type="password" value={s.apiKey} onChange={(e) => setS({ ...s, apiKey: e.target.value })} placeholder="sk-…" />
+              </label>
+              <label>Model
+                <input value={s.model} onChange={(e) => setS({ ...s, model: e.target.value })} placeholder="gpt-4o-mini" />
+              </label>
+            </>
+          )}
+
+          <div className="modal-actions">
+            <button className="ghost" onClick={onClose}>Cancel</button>
+            <button onClick={save}>{saved ? 'Saved ✓' : 'Save'}</button>
           </div>
-        )}
-        <label>Endpoint
-          <input value={s.endpoint} onChange={(e) => setS({ ...s, endpoint: e.target.value })} placeholder="https://api.openai.com/v1" />
-        </label>
-        <label>API key
-          <input type="password" value={s.apiKey} onChange={(e) => setS({ ...s, apiKey: e.target.value })} placeholder="sk-…" />
-        </label>
-        <label>Model
-          <input value={s.model} onChange={(e) => setS({ ...s, model: e.target.value })} placeholder="gpt-4o-mini" />
-        </label>
-        <div className="modal-actions">
-          <button className="ghost" onClick={onClose}>Cancel</button>
-          <button onClick={save}>{saved ? 'Saved ✓' : 'Save'}</button>
         </div>
         {permAsk && (
           <div className="guide-perm-backdrop" onClick={() => setPermAsk(false)}>

@@ -29,6 +29,7 @@ import RepoGuide from './components/RepoGuide';
 import { parseVoiceCommand, resolveTarget, speak, startListening, voiceSupported } from './lib/voice';
 import { narrateFile, migrateProficiency, PROFICIENCY_LABELS, PROFICIENCY_ORDER, type Narration, type Proficiency } from './lib/narrate';
 import { loadTheme, saveTheme, applyTheme, type ThemeId } from './lib/theme';
+import { buildShareUrl, copyToClipboard, decodeView } from './lib/share';
 
 /* ------------------------------------------------------------------ */
 /* Custom node                                                         */
@@ -136,6 +137,7 @@ export default function App() {
   const [showGuide, setShowGuide] = useState(false);
   const [listening, setListening] = useState(false);
   const [voiceMsg, setVoiceMsg] = useState('');
+  const [shareMsg, setShareMsg] = useState('');
   const [tip, setTip] = useState('');
   const [narration, setNarration] = useState<Narration | null>(null);
   const [showWelcome, setShowWelcome] = useState(false);
@@ -152,6 +154,19 @@ export default function App() {
     try { localStorage.setItem('codequest.proficiency', p); } catch { /* noop */ }
     setShowWelcome(false);
   }, []);
+
+  // Share: copy a link that restores this exact view for anyone who opens it.
+  const shareView = useCallback(async () => {
+    const url = buildShareUrl({
+      file: selectedId || undefined,
+      prof: proficiency,
+      guide: showGuide || undefined,
+      blast: blast ? blastSourceRef.current || undefined : undefined,
+    });
+    const ok = await copyToClipboard(url);
+    setShareMsg(ok ? '🔗 Link copied — anyone opening it sees this view' : 'Could not copy — long-press the URL instead');
+    setTimeout(() => setShareMsg(''), 3000);
+  }, [selectedId, proficiency, showGuide, blast]);
   const [theme, setThemeState] = useState<ThemeId>(() => loadTheme());
   const pickTheme = useCallback((t: ThemeId) => {
     setThemeState(t);
@@ -169,6 +184,10 @@ export default function App() {
   }, [tip ]);
   const flowRef = useRef<any>(null); // eslint-disable-line @typescript-eslint/no-explicit-any
   const fileInput = useRef<HTMLInputElement>(null);
+  const blastSourceRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!blast) blastSourceRef.current = null;
+  }, [blast]);
   const stopListenRef = useRef<(() => void) | null>(null);
 
   const allLayers = useMemo(
@@ -192,6 +211,24 @@ export default function App() {
     setBlast(null);
     setScope({ kind: 'repo' });
     setError('');
+    // Restore a shared view from the URL hash, if present.
+    const v = decodeView(window.location.hash);
+    if (v) {
+      if (v.prof && ['non-technical', 'beginner', 'junior', 'senior', 'lead'].includes(v.prof)) {
+        setProficiency(v.prof as Proficiency);
+        try { localStorage.setItem('codequest.proficiency', v.prof); } catch { /* noop */ }
+      }
+      if (v.guide) setShowGuide(true);
+      // File/blast selection needs the graph laid out — defer a tick.
+      setTimeout(() => {
+        if (v.blast && g.modules.some((m) => m.id === v.blast)) {
+          setBlast(blastRadius(g, v.blast));
+          blastSourceRef.current = v.blast;
+        } else if (v.file && g.modules.some((m) => m.id === v.file)) {
+          setSelectedId(v.file);
+        }
+      }, 300);
+    }
     // Large repos: declutter by default so the graph stays readable.
     // Key-files view kicks in above 60 modules on any screen — 180 nodes is spaghetti.
     const smallScreen = typeof window !== 'undefined' && window.innerWidth < 900;
@@ -320,6 +357,7 @@ export default function App() {
     (id: string) => {
       if (!graph) return;
       setBlast(blastRadius(graph, id));
+      blastSourceRef.current = id;
       setSelectedId(null); // back to the graph so the blast is visible
     },
     [graph],
@@ -625,6 +663,7 @@ export default function App() {
         )}
         <button className="ghost small" onClick={() => setShowSettings(true)} title="AI settings">⚙</button>
         <button className="ghost small" onClick={() => setShowGuide(true)} title="App guide: how to run it, how it flows, its database">📖 Guide</button>
+        <button className="ghost small" onClick={shareView} title="Copy a link to this exact view — file, guide, and all">🔗 Share</button>
         <input
           ref={fileInput}
           type="file"
@@ -677,6 +716,7 @@ export default function App() {
             onListen={() => listenToFile(selected.id)}
             onBlast={() => startBlast(selected.id)}
             onDiagram={() => showFileDiagram(selected.id)}
+            onShare={shareView}
             onSelectFile={selectFile}
             downstream={downstream}
             upstream={upstream}
@@ -854,6 +894,7 @@ export default function App() {
         </div>
       )}
       {voiceMsg && <div className="toast voice">{voiceMsg}</div>}
+      {shareMsg && <div className="toast share">{shareMsg}</div>}
       {showSettings && (
         <SettingsModal
           serverMode={serverMode}
