@@ -92,7 +92,7 @@ describe('narrateFile', () => {
       ],
     } as never;
     const n = narrateFile('a.js', graph);
-    expect(n.purpose).toContain('a.js is a app module');
+    expect(n.purpose).toContain('a.js is an app module');
     expect(n.purpose).toContain('entry point');
     expect(n.purpose).toContain('2 files import it');
     expect(n.impact).toContain('ripple through');
