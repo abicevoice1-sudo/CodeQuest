@@ -361,3 +361,17 @@ button.small { padding: 7px 14px; font-size: 13px; border-radius: 8px; }
 .search-results button .sr-path { display: block; font-size: 10px; color: #63636b; margin-top: 1px; }
 .search-results button.on, .search-results button:hover { background: #1c2a3a; }
 .toast.tip { border-color: #38bdf866; }
+
+/* ---------------- narration ---------------- */
+.tab-speak {
+  padding: 7px 10px; font-size: 14px; border-radius: 8px;
+  background: #141419; border: 1px solid #232329; cursor: pointer;
+}
+.tab-speak:hover { border-color: #38bdf8; }
+.narration {
+  margin: 10px 0 4px; padding: 12px; border-radius: 10px;
+  background: linear-gradient(180deg, #131a24, #10141b);
+  border: 1px solid #38bdf833; font-size: 13px; line-height: 1.7; color: #d4d4d8;
+}
+.narration p { margin: 6px 0; }
+.narration b { color: #38bdf8; }

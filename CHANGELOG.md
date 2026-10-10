@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.5.0 — 2026-10-10
+- Voice now **speaks a file's purpose and impact**: "explain this file" (or the 🔊 button) narrates what the module does, what it exposes, who imports it — and what would break if you change it. Deterministic, from the graph: no API key, no cost, always works.
+- The AI ✨ Explain tab stays for the deep LLM dive.
+
 ## 1.4.0 — 2026-10-10
 - Visual craft pass: nodes sized by importance (entry points + heavily-imported modules stand taller), risk glow on hot nodes, glowing risk bar, hover lift, smoother edges.
 - Search 2.0: fuzzy matching with a results dropdown, keyboard navigation (↑↓/Enter/Esc), full-path subtitles.

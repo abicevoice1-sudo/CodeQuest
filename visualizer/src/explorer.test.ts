@@ -75,3 +75,29 @@ describe('fuzzySearch', () => {
     expect(fuzzySearch('zzz-nope', ids)).toEqual([]);
   });
 });
+
+describe('narrateFile', () => {
+  it('describes purpose and impact from the graph', async () => {
+    const { narrateFile } = await import('./lib/narrate');
+    const graph = {
+      modules: [
+        { id: 'a.js', path: 'a.js', layer: 'app', risk: 'HIGH', lines: 42, isEntry: true, exports: ['start'], fanIn: 2, fanOut: 1 },
+        { id: 'b.js', path: 'b.js', layer: 'lib', risk: 'LOW', lines: 10, exports: [], fanIn: 0, fanOut: 0 },
+        { id: 'c.js', path: 'c.js', layer: 'lib', risk: 'LOW', lines: 10, exports: [], fanIn: 0, fanOut: 0 },
+      ],
+      edges: [
+        { from: 'b.js', to: 'a.js' },
+        { from: 'c.js', to: 'a.js' },
+        { from: 'a.js', to: 'b.js' },
+      ],
+    } as never;
+    const n = narrateFile('a.js', graph);
+    expect(n.purpose).toContain('a.js is a app module');
+    expect(n.purpose).toContain('entry point');
+    expect(n.purpose).toContain('2 files import it');
+    expect(n.impact).toContain('ripple through');
+    expect(n.impact).toContain('HIGH');
+    const iso = narrateFile('c.js', graph);
+    expect(iso.impact).toContain('ripple through');
+  });
+});

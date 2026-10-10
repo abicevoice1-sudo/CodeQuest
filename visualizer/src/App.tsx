@@ -22,6 +22,7 @@ import { ExplainPanel } from './components/ExplainPanel';
 import { SettingsModal } from './components/SettingsModal';
 import { parseVoiceCommand, resolveTarget, speak, startListening, voiceSupported } from './lib/voice';
 import { fuzzySearch } from './lib/search';
+import { narrateFile, type Narration } from './lib/narrate';
 
 /* ------------------------------------------------------------------ */
 /* Custom node                                                         */
@@ -92,10 +93,10 @@ export default function App() {
   const [showSettings, setShowSettings] = useState(false);
   const [listening, setListening] = useState(false);
   const [voiceMsg, setVoiceMsg] = useState('');
-  const [explainKey, setExplainKey] = useState(0);
   const [searchFocus, setSearchFocus] = useState(false);
   const [searchIdx, setSearchIdx] = useState(0);
   const [tip, setTip] = useState('');
+  const [narration, setNarration] = useState<Narration | null>(null);
   const serverMode =
     typeof window !== 'undefined' &&
     !!(window as unknown as { __CODEQUEST_GRAPH__?: unknown }).__CODEQUEST_GRAPH__;
@@ -186,7 +187,17 @@ export default function App() {
   // Reset to the info tab whenever a different module is selected.
   useEffect(() => {
     setTab('info');
+    setNarration(null);
+    try { window.speechSynthesis?.cancel(); } catch { /* noop */ }
   }, [selectedId]);
+
+  const listenToFile = useCallback((id: string) => {
+    if (!graph) return;
+    const n = narrateFile(id, graph);
+    setNarration(n);
+    setTab('info');
+    speak(`${n.purpose} ${n.impact}`);
+  }, [graph]);
 
   const focusNode = useCallback((id: string) => {
     setSelectedId(id);
@@ -265,12 +276,16 @@ export default function App() {
         if (cmd.kind === 'blast') {
           startBlast(id);
           setVoiceMsg(`Blast radius for ${shortName(id)}.`);
-          speak(`Showing blast radius for ${shortName(id)}.`);
+          speak(`Showing blast radius for ${shortName(id)}. Check the panel.`);
         } else {
-          setTab('explain');
-          setExplainKey((k) => k + 1);
-          setVoiceMsg(`Explaining ${shortName(id)}.`);
-          speak(`Explaining ${shortName(id)}.`);
+          // Voice explain = spoken purpose + impact, no API key needed.
+          if (graph) {
+            const n = narrateFile(id, graph);
+            setNarration(n);
+            setTab('info');
+            setVoiceMsg(`${shortName(id)}: ${n.purpose}`);
+            speak(`${n.purpose} ${n.impact}`);
+          }
         }
       } else if (cmd.kind === 'clear') {
         setBlast(null);
@@ -594,12 +609,25 @@ export default function App() {
                     {t === 'info' ? 'Info' : t === 'code' ? '</> Code' : '✨ Explain'}
                   </button>
                 ))}
+                <button
+                  className="tab-speak"
+                  title="Listen: hear this file's purpose and impact"
+                  onClick={() => selectedId && listenToFile(selectedId)}
+                >
+                  🔊
+                </button>
               </div>
+              {narration && tab === 'info' && (
+                <div className="narration">
+                  <p><b>Purpose.</b> {narration.purpose}</p>
+                  <p><b>Impact.</b> {narration.impact}</p>
+                </div>
+              )}
               {tab === 'code' ? (
                 <CodePanel path={selected.id} code={fileCode} loadError={fileLoadError} />
               ) : tab === 'explain' ? (
                 explainCtx ? (
-                  <ExplainPanel ctx={explainCtx} autoRunKey={explainKey} onNeedSettings={() => setShowSettings(true)} />
+                  <ExplainPanel ctx={explainCtx} autoRunKey={0} onNeedSettings={() => setShowSettings(true)} />
                 ) : (
                   <div className="code-hint">Select a file first.</div>
                 )
