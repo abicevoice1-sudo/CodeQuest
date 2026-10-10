@@ -57,12 +57,53 @@ export function resolveTarget(target: string, ids: string[]): string | null {
   return scored.length ? scored[0][1] : null;
 }
 
+export interface VoiceSettings {
+  voiceURI: string; // '' = system default
+  rate: number;     // 0.5 – 2
+  pitch: number;    // 0 – 2
+}
+
+const VOICE_LS_KEY = 'codequest.voice';
+
+export function loadVoiceSettings(): VoiceSettings {
+  try {
+    const raw = localStorage.getItem(VOICE_LS_KEY);
+    if (raw) return { voiceURI: '', rate: 1.05, pitch: 1, ...JSON.parse(raw) };
+  } catch { /* ignore */ }
+  return { voiceURI: '', rate: 1.05, pitch: 1 };
+}
+
+export function saveVoiceSettings(s: VoiceSettings): void {
+  try { localStorage.setItem(VOICE_LS_KEY, JSON.stringify(s)); } catch { /* ignore */ }
+}
+
+/** System TTS voices. Browsers load these async — resolves once available. */
+export function getVoices(): Promise<SpeechSynthesisVoice[]> {
+  return new Promise((resolve) => {
+    try {
+      const synth = window.speechSynthesis;
+      const done = () => resolve(synth.getVoices());
+      const existing = synth.getVoices();
+      if (existing.length) { resolve(existing); return; }
+      synth.onvoiceschanged = done;
+      // Fallback: don't hang if the event never fires.
+      setTimeout(() => resolve(synth.getVoices()), 1500);
+    } catch { resolve([]); }
+  });
+}
+
 export function speak(text: string, onEnd?: () => void): void {
   try {
     const synth = window.speechSynthesis;
     synth.cancel();
     const u = new SpeechSynthesisUtterance(text);
-    u.rate = 1.05;
+    const vs = loadVoiceSettings();
+    u.rate = Math.min(2, Math.max(0.5, vs.rate || 1.05));
+    u.pitch = Math.min(2, Math.max(0, vs.pitch ?? 1));
+    if (vs.voiceURI) {
+      const v = synth.getVoices().find((x) => x.voiceURI === vs.voiceURI);
+      if (v) u.voice = v;
+    }
     if (onEnd) {
       let done = false;
       const finish = () => { if (!done) { done = true; onEnd(); } };

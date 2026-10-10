@@ -1,5 +1,6 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { loadAISettings, saveAISettings } from '../lib/ai';
+import { getVoices, loadVoiceSettings, saveVoiceSettings, speak } from '../lib/voice';
 import { THEMES, type ThemeId } from '../lib/theme';
 
 interface EnvMatch { key: string; score: number; masked: string; }
@@ -21,11 +22,21 @@ export function SettingsModal({
   const [matches, setMatches] = useState<EnvMatch[] | null>(null);
   const [envError, setEnvError] = useState('');
   const [copiedKey, setCopiedKey] = useState('');
+  const [vs, setVs] = useState(loadVoiceSettings());
+  const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([]);
+
+  useEffect(() => { getVoices().then(setVoices); }, []);
 
   const save = () => {
     saveAISettings({ ...s, endpoint: s.endpoint.trim().replace(/\/$/, ''), model: s.model.trim() });
+    saveVoiceSettings(vs);
     setSaved(true);
     setTimeout(onClose, 700);
+  };
+
+  const previewVoice = () => {
+    saveVoiceSettings(vs);
+    speak('Hello! This is how I will sound when I explain your code.');
   };
 
   const scanEnv = async () => {
@@ -67,6 +78,44 @@ export function SettingsModal({
             </button>
           ))}
         </div>
+
+        <h4 className="modal-sec">Voice</h4>
+        <p className="modal-sub">
+          The voice that reads explanations aloud. Free, on-device — no API key needed.
+        </p>
+        <label>Voice
+          <select
+            value={vs.voiceURI}
+            onChange={(e) => setVs({ ...vs, voiceURI: e.target.value })}
+          >
+            <option value="">System default</option>
+            {voices.map((v) => (
+              <option key={v.voiceURI} value={v.voiceURI}>
+                {v.name} — {v.lang}{v.localService ? '' : ' (network)'}
+              </option>
+            ))}
+          </select>
+        </label>
+        {!voices.length && (
+          <p className="modal-sub">Loading system voices…</p>
+        )}
+        <label>Speed: {vs.rate.toFixed(2)}×
+          <input
+            type="range" min={0.5} max={2} step={0.05}
+            value={vs.rate}
+            onChange={(e) => setVs({ ...vs, rate: parseFloat(e.target.value) })}
+          />
+        </label>
+        <label>Pitch: {vs.pitch.toFixed(2)}
+          <input
+            type="range" min={0} max={2} step={0.05}
+            value={vs.pitch}
+            onChange={(e) => setVs({ ...vs, pitch: parseFloat(e.target.value) })}
+          />
+        </label>
+        <button className="ghost small" onClick={previewVoice} style={{ marginBottom: 10 }}>
+          🔊 Preview voice
+        </button>
 
         <h4 className="modal-sec">AI explain</h4>
         <p className="modal-sub">
