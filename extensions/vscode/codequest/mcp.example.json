@@ -1,1 +1,0 @@
-{"//":"Add your company's own API MCP servers alongside codequest — the agent can mix the repo graph with any API you plug in.","servers":{"codequest":{"args":["${workspaceFolder}/codequest/mcp-server.js"],"command":"node","type":"stdio"}}}

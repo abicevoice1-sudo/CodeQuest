@@ -1,8 +1,28 @@
-# CodeQuest
+<div align="center">
+
+# ⬢ CodeQuest
 
 **Drop-in repo intelligence for GitHub Copilot.** A computed module graph, blast-radius
 analysis, story traces, and CI drift gates — wired to any API via MCP. Your code never
 leaves your machine.
+
+[![CI](https://github.com/abicevoice1-sudo/CodeQuest/actions/workflows/codequest.yml/badge.svg)](https://github.com/abicevoice1-sudo/CodeQuest/actions/workflows/codequest.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Node 18+](https://img.shields.io/badge/node-18%2B-brightgreen.svg)](https://nodejs.org/)
+[![Version](https://img.shields.io/badge/version-1.1.1-blue.svg)](CHANGELOG.md)
+
+![CodeQuest visualizer — interactive dependency graph](docs/screenshots/graph.png)
+
+*The visualizer: every module, every import, risk-scored — click any node to inspect it.*
+
+</div>
+
+## See it in action
+
+| Blast-radius heatmap | Node inspector |
+|---|---|
+| ![Blast radius view](docs/screenshots/blast-radius.png) | ![Node inspector](docs/screenshots/inspector.png) |
+| Change one file → see everything it touches, by degree. | Exports, imports with line numbers, dependents. |
 
 ## The 60-second version
 
@@ -63,6 +83,7 @@ codequest/
 ├── CODEQUEST.md              # the master system prompt — the brain
 ├── AGENTS.md                 # agent operating notes
 ├── README.md                 # drop-in quickstart
+├── package.json              # npm publishing (bin: codequest)
 ├── mcp-server.js             # the analyzer as MCP tools (Copilot calls them natively)
 ├── mcp.example.json          # MCP wiring: codequest + any API your company plugs in
 ├── .github/
@@ -71,8 +92,14 @@ codequest/
 │   ├── instructions/         # analysis + formatting rules (always applied)
 │   └── prompts/              # /codequest-onboard, -map, -blast-radius, -story, -whatif, -review
 ├── skills/                   # Agent Skills: repo-cartographer, blast-radius, story-mode, what-if
-├── bin/codequest             # deterministic static analyzer (Node, zero deps, offline)
+├── bin/codequest             # CLI entry (thin — dispatches to lib/)
+├── lib/                      # scan.js (graph engine) · commands.js · setup.js · util.js
+├── parsers/tree-sitter/      # optional AST engine (scan --engine tree-sitter)
+├── tests/                    # 19-test analyzer suite (node --test)
 └── templates/                # report templates (blast-radius, story-mode, what-if, architecture, module-card)
+
+visualizer/                   # interactive dependency-graph UI (React + dagre)
+extensions/vscode/            # VS Code extension — ./build.sh packages the .vsix
 ```
 
 ## The loop

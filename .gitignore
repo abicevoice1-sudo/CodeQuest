@@ -1,2 +1,6 @@
 node_modules/
 .codequest/
+visualizer/dist/
+extensions/vscode/media/
+extensions/vscode/codequest/
+extensions/vscode/*.vsix

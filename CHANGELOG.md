@@ -1,6 +1,15 @@
 # Changelog
 
-## 1.1.0 — 2026-10-09
+## 1.1.1 — 2026-10-09
+
+- **Repo presentation overhaul**: README hero with screenshots + badges, pack tree docs.
+- **Analyzer split**: 1,065-line monolith → `bin/codequest` + `lib/` (`scan.js`, `commands.js`,
+  `setup.js`, `util.js`); single `VERSION` source. All 19 tests still green.
+- **Build hygiene**: `visualizer/dist`, extension `media/`, `.vsix`, and the bundled analyzer
+  copy are git-ignored build outputs now; `extensions/vscode/build.sh` reproduces them.
+- **Community**: `CONTRIBUTING.md`, issue templates, PR template.
+- **Distribution-ready**: `codequest/package.json` (npm bin) — `npm publish` is one step away.
+- **Visualizer tests**: 6 vitest tests for layout + blast-radius logic.
 
 - **Tree-sitter engine** (`--engine tree-sitter`): real AST parsing for JS/TS/TSX/Python,
   zero false positives from comments/strings; 100% edge parity with the regex engine

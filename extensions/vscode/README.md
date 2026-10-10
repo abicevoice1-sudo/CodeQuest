@@ -4,8 +4,9 @@ CodeQuest AI inside VS Code: dependency graph sidebar, blast-radius view, click-
 
 ## Install
 
-- From the `.vsix` in this folder: `code --install-extension codequest-1.1.0.vsix`
-- Or search the Marketplace for "CodeQuest" (once published).
+- From a release `.vsix`: `code --install-extension codequest-1.1.0.vsix`
+- Or build from source: `./build.sh` (builds the visualizer, bundles the analyzer,
+  compiles, and packages — the `.vsix` lands in this folder)
 
 ## Use
 
@@ -16,15 +17,5 @@ CodeQuest AI inside VS Code: dependency graph sidebar, blast-radius view, click-
 
 ## Settings
 
-- `codequest.engine`: `regex` (default, zero-dep) or `tree-sitter` (needs `codequest/parsers/tree-sitter` npm install).
-
-## Rebuild from source
-
-```bash
-# 1. Build the visualizer
-cd visualizer && npm install && npm run build && cd ..
-# 2. Refresh extension media + bundled analyzer
-rm -rf extensions/vscode/media && cp -r visualizer/dist extensions/vscode/media
-# 3. Compile + package
-cd extensions/vscode && npx tsc -p tsconfig.json && npx vsce package
-```
+- `codequest.engine`: `regex` (default, zero-dep) or `tree-sitter` (needs
+  `codequest/parsers/tree-sitter` npm install inside the bundled pack).
