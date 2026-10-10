@@ -12,6 +12,7 @@ const { fail, out } = require('../lib/util');
 const { buildGraph, runTreeSitterExtract } = require('../lib/scan');
 const { cmdDiff, cmdHistory, cmdTrends, cmdBlastRadius, cmdStory, repoMapMd, riskTag } = require('../lib/commands');
 const { cmdSetup } = require('../lib/setup');
+const { cmdVisualize } = require('../lib/serve');
 const { VERSION } = require('../lib/scan');
 
 function main() {
@@ -52,6 +53,7 @@ function main() {
       '  setup [dir]                detect local IDEs/AI assistants and configure each one',
       '  history [dir]              record a drift snapshot (.codequest/history.jsonl)',
       '  trends [dir]               show drift history over time',
+      '  visualize [dir]            scan + open the interactive graph in your browser',
       '',
       'Add --json for machine-readable output.',
       'diff honors --fail-on <list>: comma list of critical,cycles,escalations (default: critical,cycles).',
@@ -141,6 +143,10 @@ function main() {
   }
   if (cmd === 'history') return cmdHistory(dirOf(1), asJson);
   if (cmd === 'trends') return cmdTrends(dirOf(1), asJson);
+  if (cmd === 'visualize') {
+    const packDir = path.join(__dirname, '..'); // codequest/bin/codequest → codequest/
+    return cmdVisualize(dirOf(1), packDir, flags);
+  }
   return fail(`unknown command "${cmd}" — try --help`, asJson);
 }
 

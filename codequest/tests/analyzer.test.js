@@ -265,3 +265,20 @@ test('history records snapshots; trends shows them', () => {
   const lines = fs.readFileSync(h1, 'utf8').trim().split('\n');
   assert.equal(lines.length, 2, 'two snapshots recorded');
 });
+
+test('visualize injects the scanned graph into the served page', () => {
+  const { buildPage } = require('../lib/serve');
+  const visDir = path.join(ROOT, 'codequest', 'visualizer');
+  if (!fs.existsSync(path.join(visDir, 'index.html'))) {
+    console.log('  (skip: visualizer dist not built)');
+    return;
+  }
+  const graph = { version: '1.2.0', modules: [{ id: 'a/b.js', layer: 'app' }], edges: [] };
+  const html = buildPage(visDir, graph);
+  assert.ok(html.includes('window.__CODEQUEST_GRAPH__'), 'graph injected');
+  assert.ok(html.includes('"id":"a/b.js"'), 'module id present in injected payload');
+  assert.ok(!html.includes('</script><script>window.__CODEQUEST_GRAPH__=</script>'), 'payload not empty');
+  // XSS safety: raw < must be escaped inside the script tag
+  const evil = buildPage(visDir, { x: '</script><script>alert(1)</script>' });
+  assert.ok(!evil.includes('</script><script>alert'), 'angle brackets escaped');
+});

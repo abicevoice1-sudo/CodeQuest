@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.2.0 — 2026-10-10
+- New `visualize` command: scans the repo, serves the visualizer locally, and opens it in your browser — one command, zero setup.
+- The visualizer now ships inside the npm package and the drop-in folder.
+- Test suite: 20/20 (analyzer) green.
+
 ## 1.1.1 — 2026-10-09
 
 - **Repo presentation overhaul**: README hero with screenshots + badges, pack tree docs.

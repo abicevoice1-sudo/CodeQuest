@@ -5,3 +5,4 @@ extensions/vscode/media/
 extensions/vscode/codequest/
 extensions/vscode/*.vsix
 *.tgz
+codequest/visualizer/
