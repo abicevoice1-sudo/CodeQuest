@@ -6,6 +6,7 @@
 
 import { blastRadius } from '../layout';
 import { shortName, type CodeQuestGraph } from '../types';
+import { readCode, summarizeCode } from './coderead';
 
 export type Proficiency = 'non-technical' | 'beginner' | 'junior' | 'senior' | 'lead';
 
@@ -50,6 +51,7 @@ interface Facts {
   blastCount: number;
   blastNames: string[];
   risk: string;
+  codeSummary: string | null; // grounded in the actual source, not the filename
 }
 
 function list(names: string[], max = 4): string {
@@ -57,7 +59,7 @@ function list(names: string[], max = 4): string {
   return names.length > max ? `${shown}, and ${names.length - max} more` : shown;
 }
 
-function collectFacts(id: string, graph: CodeQuestGraph): Facts | null {
+function collectFacts(id: string, graph: CodeQuestGraph, source?: string): Facts | null {
   const m = graph.modules.find((x) => x.id === id);
   if (!m) return null;
   const dependents = graph.edges.filter((e) => e.to === id).map((e) => shortName(e.from));
@@ -66,6 +68,15 @@ function collectFacts(id: string, graph: CodeQuestGraph): Facts | null {
   const affected = [...blast.entries()]
     .filter(([k]) => k !== id)
     .sort((a, b) => a[1] - b[1] || a[0].localeCompare(b[0]));
+  // Ground the explanation in the actual source when available — this is what
+  // lifts narration above filename pattern-matching.
+  let codeSummary: string | null = null;
+  if (source) {
+    try {
+      const sig = readCode(source, m.path);
+      codeSummary = summarizeCode(sig);
+    } catch { /* fall back to patterns */ }
+  }
   return {
     name: shortName(m.path),
     layer: m.layer,
@@ -77,6 +88,7 @@ function collectFacts(id: string, graph: CodeQuestGraph): Facts | null {
     blastCount: affected.length,
     blastNames: affected.map(([k]) => shortName(k)),
     risk: m.risk || 'LOW',
+    codeSummary,
   };
 }
 
@@ -223,8 +235,12 @@ export function describeBusiness(id: string, graph: CodeQuestGraph): BusinessRol
 
 function renderBusiness(f: Facts): Narration {
   const role = businessRole(f.name, f.layer, f.isEntry);
+  // Code-derived summary beats filename pattern-matching every time.
+  const what = f.codeSummary
+    ? `${f.name}: ${f.codeSummary.charAt(0).toLowerCase()}${f.codeSummary.slice(1)}`
+    : `${f.name} handles ${role.capability}`;
   const purpose =
-    `${f.name} handles ${role.capability} — ${role.why}.` +
+    `${what} — ${role.why}.` +
     (f.dependents.length
       ? ` ${f.dependents.length === 1 ? 'One other part of the app' : `${f.dependents.length} other parts of the app`} ` +
         `(${list(f.dependents)}) ${f.dependents.length === 1 ? 'relies' : 'rely'} on it to do ${f.dependents.length === 1 ? 'its' : 'their'} job${f.dependents.length === 1 ? '' : 's'}.`
@@ -337,8 +353,9 @@ export function narrateFile(
   id: string,
   graph: CodeQuestGraph,
   proficiency: Proficiency = 'junior',
+  source?: string,
 ): Narration {
-  const f = collectFacts(id, graph);
+  const f = collectFacts(id, graph, source);
   if (!f) return { purpose: 'File not found in the graph.', impact: '' };
   switch (proficiency) {
     case 'non-technical':

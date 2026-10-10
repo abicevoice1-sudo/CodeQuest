@@ -17,6 +17,10 @@ export interface CQNodeData extends Record<string, unknown> {
 
 const BASE_H = 64;
 
+// Layout cache: dagre is the expensive part. Keyed by graph identity +
+// filter state so toggling a filter back doesn't recompute. Bounded at 8.
+const layoutCache = new Map<string, { nodes: Node<CQNodeData>[]; edges: Edge[]; counts: { shown: number; hidden: number } }>();
+
 function nodeWidth(m: GraphModule): number {
   // Width grows with label length so text never clips.
   return Math.min(280, Math.max(150, shortName(m.path).length * 8.5 + 56));
@@ -32,6 +36,24 @@ export function layoutGraph(
   g: CodeQuestGraph,
   opts: { hideTests: boolean; hideAssets: boolean; keyOnly: boolean; layers: Set<string>; risks: Set<string> },
 ): { nodes: Node<CQNodeData>[]; edges: Edge[]; counts: { shown: number; hidden: number } } {
+  // Memoize: dagre layout is the expensive part. Cache by graph identity +
+  // filter state so toggling a filter back doesn't recompute.
+  const cacheKey = [
+    g.modules.length,
+    g.edges.length,
+    opts.hideTests ? 1 : 0,
+    opts.hideAssets ? 1 : 0,
+    opts.keyOnly ? 1 : 0,
+    [...opts.layers].sort().join(','),
+    [...opts.risks].sort().join(','),
+    // Graph identity: first/last module ids catch a swapped graph with same counts.
+    g.modules[0]?.id || '',
+    g.modules[g.modules.length - 1]?.id || '',
+  ].join('|');
+  const cached = layoutCache.get(cacheKey);
+  if (cached) return cached;
+
+  const t0 = performance.now();
   const dag = new dagre.graphlib.Graph();
   dag.setGraph({ rankdir: 'LR', nodesep: 46, ranksep: 130, marginx: 40, marginy: 40 });
   dag.setDefaultEdgeLabel(() => ({}));
@@ -84,7 +106,13 @@ export function layoutGraph(
     };
   });
 
-  return { nodes, edges, counts: { shown: shown.length, hidden: g.modules.length - shown.length } };
+  const result = { nodes, edges, counts: { shown: shown.length, hidden: g.modules.length - shown.length } };
+  const ms = performance.now() - t0;
+  if (ms > 50) console.debug(`[codequest] layout ${shown.length} nodes in ${ms.toFixed(0)}ms`);
+  // Bound the cache — graphs are per-repo, 8 entries is plenty.
+  if (layoutCache.size >= 8) layoutCache.delete(layoutCache.keys().next().value!);
+  layoutCache.set(cacheKey, result);
+  return result;
 }
 
 /** BFS blast radius: degree map from source over both directions. */

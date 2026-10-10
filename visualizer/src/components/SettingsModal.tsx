@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { loadAISettings, saveAISettings } from '../lib/ai';
+import { loadAISettings, saveAISettings, AI_PROVIDERS, detectOllama } from '../lib/ai';
 import { getVoices, groupVoices, loadVoiceSettings, saveVoiceSettings, speak } from '../lib/voice';
 import { loadJiraSettings, saveJiraSettings, testJiraConnection, jiraConfigured } from '../lib/jira';
 import { loadFigmaSettings, saveFigmaSettings, testFigmaConnection, figmaConfigured, extractFileKey } from '../lib/figma';
@@ -33,6 +33,27 @@ export function SettingsModal({
   const [figmaTest, setFigmaTest] = useState('');
   const [figmaTesting, setFigmaTesting] = useState(false);
   const [tab, setTab] = useState<'appearance' | 'voice' | 'integrations' | 'ai'>('appearance');
+  const [ollamaModels, setOllamaModels] = useState<string[] | null>(null);
+  const [ollamaChecking, setOllamaChecking] = useState(false);
+
+  const checkOllama = async () => {
+    setOllamaChecking(true);
+    const models = await detectOllama();
+    setOllamaModels(models);
+    setOllamaChecking(false);
+    if (models && models.length) {
+      // One-click: point at Ollama with the first installed model.
+      setS({ ...s, endpoint: 'http://localhost:11434/v1', apiKey: 'ollama', model: models[0] });
+    } else if (models) {
+      setS({ ...s, endpoint: 'http://localhost:11434/v1', apiKey: 'ollama', model: 'llama3.2' });
+    }
+  };
+
+  const pickProvider = (id: string) => {
+    const p = AI_PROVIDERS.find((x) => x.id === id);
+    if (!p) return;
+    setS({ ...s, endpoint: p.endpoint, model: p.model, apiKey: p.needsKey ? s.apiKey : 'ollama' });
+  };
 
   useEffect(() => { getVoices().then(setVoices); }, []);
   const voiceGroups = useMemo(() => groupVoices(voices), [voices]);
@@ -263,9 +284,31 @@ export function SettingsModal({
             <>
               <h4 className="modal-sec">AI explain</h4>
               <p className="modal-sub">
-                File explanations call an LLM with your own key. The key never leaves your browser
-                except to the endpoint below. Any OpenAI-compatible API works.
+                Smarter explanations, read from the actual code. Pick a provider —
+                Ollama is free and runs on your machine, no key needed.
               </p>
+              <div className="provider-grid">
+                {AI_PROVIDERS.map((p) => (
+                  <button
+                    key={p.id}
+                    className={`provider-opt${s.endpoint === p.endpoint ? ' on' : ''}`}
+                    onClick={() => pickProvider(p.id)}
+                  >
+                    <span className="prof-opt-name">{p.label}</span>
+                    <span className="prof-opt-hint">{p.hint}</span>
+                  </button>
+                ))}
+              </div>
+              <button className="ghost small" onClick={checkOllama} disabled={ollamaChecking} style={{ marginBottom: 10 }}>
+                {ollamaChecking ? 'Checking…' : '🦙 Detect Ollama on this machine'}
+              </button>
+              {ollamaModels !== null && (
+                <p className="modal-sub">
+                  {ollamaModels.length
+                    ? `✓ Ollama found — ${ollamaModels.length} model${ollamaModels.length === 1 ? '' : 's'} installed (${ollamaModels.slice(0, 3).join(', ')}${ollamaModels.length > 3 ? '…' : ''}). You're set — no API key needed.`
+                    : '✓ Ollama is running but no models installed yet. Run `ollama pull llama3.2` in your terminal, then detect again.'}
+                </p>
+              )}
               <button className="ghost small" onClick={() => setPermAsk(true)} style={{ marginBottom: 10 }}>
                 📥 Import key from .env
               </button>

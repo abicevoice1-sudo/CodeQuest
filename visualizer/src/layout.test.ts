@@ -66,3 +66,21 @@ describe('layoutGraph', () => {
     expect(edges).toHaveLength(0);
   });
 });
+
+describe('layoutGraph cache', () => {
+  it('returns the same result for identical inputs without recomputing', () => {
+    const opts = { hideTests: false, hideAssets: false, keyOnly: false, layers: allLayers, risks: allRisks };
+    const first = layoutGraph(graph, opts);
+    const second = layoutGraph(graph, opts);
+    // Same reference = cache hit, no dagre recompute.
+    expect(second).toBe(first);
+  });
+
+  it('recomputes when filters change', () => {
+    const base = { hideTests: false, hideAssets: false, keyOnly: false, layers: allLayers, risks: allRisks };
+    const a = layoutGraph(graph, base);
+    const b = layoutGraph(graph, { ...base, hideTests: true });
+    expect(b).not.toBe(a);
+    expect(b.nodes.length).toBeLessThan(a.nodes.length);
+  });
+});

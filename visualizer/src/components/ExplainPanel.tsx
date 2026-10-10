@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { explainFile, loadAISettings, mdToHtml, type ExplainContext } from '../lib/ai';
+import { explainFile, loadAISettings, aiConfigured, mdToHtml, type ExplainContext } from '../lib/ai';
 
 export function ExplainPanel({
   ctx,
@@ -21,9 +21,9 @@ export function ExplainPanel({
     setOut('');
     try {
       const s = loadAISettings();
-      if (!s.apiKey) {
+      if (!aiConfigured(s)) {
         onNeedSettings();
-        setErr('Add your API key in Settings first — it stays in your browser.');
+        setErr('Pick a provider in Settings → AI explain — Ollama is free with no key, or paste any API key.');
         return;
       }
       const text = await explainFile(ctx, s);

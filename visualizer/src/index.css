@@ -1237,3 +1237,14 @@ details.filters section { padding: 0 12px 12px; }
   .settings-nav-btn { white-space: nowrap; }
 }
 .fd-loading { padding: 40px; text-align: center; color: var(--text-faint); }
+
+/* ---------------- AI provider presets ---------------- */
+.provider-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 12px; }
+.provider-opt {
+  padding: 10px 12px; border-radius: 10px; border: 1px solid var(--border-strong);
+  background: var(--bg); cursor: pointer; text-align: left;
+  display: flex; flex-direction: column; gap: 2px;
+}
+.provider-opt:hover { border-color: var(--accent); }
+.provider-opt.on { border-color: var(--accent); background: #38bdf622; }
+@media (max-width: 640px) { .provider-grid { grid-template-columns: 1fr; } }

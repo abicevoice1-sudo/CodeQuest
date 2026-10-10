@@ -21,6 +21,45 @@ export function saveAISettings(s: AISettings): void {
   localStorage.setItem(LS_KEY, JSON.stringify(s));
 }
 
+/* ------------------------------------------------------------------ */
+/* Provider presets + Ollama detection — killing the API-key friction  */
+/* ------------------------------------------------------------------ */
+
+export interface AIProvider {
+  id: string;
+  label: string;
+  hint: string;
+  endpoint: string;
+  model: string;
+  needsKey: boolean;
+}
+
+export const AI_PROVIDERS: AIProvider[] = [
+  { id: 'ollama', label: '🦙 Ollama (free, local)', hint: 'No key, no account — runs on your machine', endpoint: 'http://localhost:11434/v1', model: 'llama3.2', needsKey: false },
+  { id: 'openai', label: 'OpenAI', hint: 'Needs an API key', endpoint: 'https://api.openai.com/v1', model: 'gpt-4o-mini', needsKey: true },
+  { id: 'groq', label: 'Groq', hint: 'Fast + free tier', endpoint: 'https://api.groq.com/openai/v1', model: 'llama-3.3-70b-versatile', needsKey: true },
+  { id: 'gemini', label: 'Google Gemini', hint: 'Free tier available', endpoint: 'https://generativelanguage.googleapis.com/v1beta/openai', model: 'gemini-2.0-flash', needsKey: true },
+  { id: 'openrouter', label: 'OpenRouter', hint: 'One key, many models', endpoint: 'https://openrouter.ai/api/v1', model: 'meta-llama/llama-3.3-70b-instruct', needsKey: true },
+];
+
+/** Check if Ollama is running locally. Returns installed model names, or null. */
+export async function detectOllama(): Promise<string[] | null> {
+  try {
+    const r = await fetch('http://localhost:11434/api/tags', { signal: AbortSignal.timeout(2500) });
+    if (!r.ok) return null;
+    const j = await r.json();
+    return (j.models || []).map((m: { name?: string }) => m.name || '').filter(Boolean);
+  } catch {
+    return null;
+  }
+}
+
+export function aiConfigured(s: AISettings): boolean {
+  // Ollama needs no key; everyone else does.
+  if (s.endpoint.includes('localhost:11434') || s.endpoint.includes('127.0.0.1:11434')) return true;
+  return !!s.apiKey;
+}
+
 export interface ExplainContext {
   path: string;
   layer?: string;
@@ -33,7 +72,7 @@ export interface ExplainContext {
 }
 
 export async function explainFile(ctx: ExplainContext, s: AISettings): Promise<string> {
-  if (!s.apiKey) throw new Error('Add your API key in Settings (gear icon) first.');
+  if (!aiConfigured(s)) throw new Error('Pick a provider in Settings → AI explain first.');
   const endpoint = s.endpoint.replace(/\/$/, '');
   const code = ctx.code.length > 14000 ? ctx.code.slice(0, 14000) + '\n…(truncated)' : ctx.code;
   const user = [

@@ -325,9 +325,9 @@ export default function App() {
   useEffect(() => {
     setTab('info');
     try { window.speechSynthesis?.cancel(); } catch { /* noop */ }
-    if (selectedId && graph) setNarration(narrateFile(selectedId, graph, proficiency));
+    if (selectedId && graph) setNarration(narrateFile(selectedId, graph, proficiency, fileCode || undefined));
     else setNarration(null);
-  }, [selectedId, graph, proficiency]);
+  }, [selectedId, graph, proficiency, fileCode]);
 
   const listenToFile = useCallback((id: string) => {
     if (!graph) return;
