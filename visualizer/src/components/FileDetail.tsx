@@ -83,9 +83,9 @@ export function FileDetail({
           </div>
         </div>
         <div className="fd-actions">
-          <button className="fd-action-btn" title="Hear this file's purpose and impact" onClick={onListen}><span>🔊</span><span className="fd-action-label">Listen</span></button>
-          <button className="fd-action-btn" title="Diagram: this file and its connections" onClick={onDiagram}><span>◈</span><span className="fd-action-label">Diagram</span></button>
-          <button className="fd-action-btn" title="Show blast radius" onClick={onBlast}><span>◉</span><span className="fd-action-label">Blast</span></button>
+          <button className="fd-action-btn" title="Listen — hear what this file does, out loud" onClick={onListen}><span>🔊</span><span className="fd-action-label">Listen</span></button>
+          <button className="fd-action-btn" title="Diagram — see this file and everything it connects to" onClick={onDiagram}><span>◈</span><span className="fd-action-label">Diagram</span></button>
+          <button className="fd-action-btn" title="Blast radius — see what breaks if you change this file" onClick={onBlast}><span>◉</span><span className="fd-action-label">Blast</span></button>
         </div>
       </div>
 

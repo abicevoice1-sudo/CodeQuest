@@ -666,7 +666,7 @@ details.filters section { padding: 0 12px 12px; }
 .fd-action-btn:hover { border-color: var(--accent); background: var(--bg-selected); }
 @media (max-width: 900px) {
   .fd-action-btn { padding: 8px 10px; }
-  .fd-action-btn .fd-action-label { display: none; }
+  .fd-action-btn .fd-action-label { display: inline; font-size: 11px; }
 }
 .fd-mobile-tabs { display: none; }
 /* NOTE: the showing rule lives in the mobile media query as
@@ -1132,3 +1132,11 @@ details.filters section { padding: 0 12px 12px; }
 @media (max-width: 900px) {
   .cq-minimap { display: none; }
 }
+
+.guide-story-parts { display: flex; flex-direction: column; gap: 10px; margin: 8px 0 4px; }
+.guide-story-part {
+  background: var(--bg-card); border: 1px solid var(--border);
+  border-radius: 10px; padding: 12px 14px;
+}
+.guide-story-name { display: block; font-weight: 700; font-size: 14px; margin-bottom: 4px; }
+.guide-story-desc { display: block; font-size: 13px; color: var(--text-2); line-height: 1.55; }

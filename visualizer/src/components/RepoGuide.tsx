@@ -90,6 +90,50 @@ function businessWhy(from: string, role: { capability: string; why: string }): s
   return `${f} needs ${role.capability} — ${role.why}. That's the business reason they're connected.`;
 }
 
+function businessStory(graph: CodeQuestGraph): { what: string; parts: { name: string; desc: string }[]; journey: string } {
+  const layers = new Set(graph.modules.map((m) => (m.layer || '').toLowerCase()));
+  const has = (...ks: string[]) => ks.some((k) => [...layers].some((l) => l.includes(k)));
+  const count = (...ks: string[]) =>
+    graph.modules.filter((m) => ks.some((k) => (m.layer || '').toLowerCase().includes(k)) && m.kind === 'code').length;
+
+  const entry = graph.intel?.flow?.primaryEntry || '';
+  const en = entry.toLowerCase();
+  const what = /cli|command/.test(en)
+    ? 'a command-line tool — you type a command, it does the work, and reports back'
+    : /serve|server|app\.|index/.test(en)
+      ? 'an app that runs continuously, waiting for you (or other software) to ask it to do things'
+      : 'a software app — a set of files that work together to do a job';
+
+  const parts: { name: string; desc: string }[] = [];
+  if (has('ui', 'component', 'page', 'view')) {
+    const c = count('ui', 'component', 'page', 'view');
+    parts.push({ name: '🖥️ What you see', desc: `The screens and buttons — ${c} piece${c === 1 ? '' : 's'} that make up the visible interface.` });
+  }
+  if (has('api', 'route', 'controller', 'handler')) {
+    const c = count('api', 'route', 'controller', 'handler');
+    parts.push({ name: '🚪 The front door', desc: `Where requests come in — ${c} entry point${c === 1 ? '' : 's'} that receive asks from users or other apps.` });
+  }
+  if (has('service', 'domain', 'logic', 'core')) {
+    const c = count('service', 'domain', 'logic', 'core');
+    parts.push({ name: '⚙️ The work', desc: `Where the actual job gets done — ${c} piece${c === 1 ? '' : 's'} of business logic that do the thinking.` });
+  }
+  if (has('data', 'db', 'database', 'repo', 'store', 'model')) {
+    const c = count('data', 'db', 'database', 'repo', 'store', 'model');
+    parts.push({ name: '🗄️ The memory', desc: `Where information is kept — ${c} piece${c === 1 ? '' : 's'} that read and write the app's records.` });
+  }
+  if (parts.length === 0) {
+    parts.push({ name: '📦 The pieces', desc: `${graph.modules.filter((m) => m.kind === 'code').length} code files working together.` });
+  }
+
+  const tables: { name: string }[] = graph.intel?.schema?.tables || [];
+  const journey =
+    tables.length > 0
+      ? `You ask for something → the front door receives it → the work gets done → the memory (${tables.slice(0, 3).map((t: { name: string }) => t.name).join(', ')}${tables.length > 3 ? ', and more' : ''}) is updated → you get your answer.`
+      : `You ask for something → the front door receives it → the work gets done → you get your answer.`;
+
+  return { what, parts, journey };
+}
+
 function flowIntro(entry: string, prof: Prof): string {
   const e = shortName(entry);
   if (prof === 'non-technical')
@@ -382,17 +426,15 @@ export default function RepoGuide({
                       </li>
                     ))}
                   </ol>
-                  {flow.pipeline.length > 0 && (
+                  {flow.pipeline.length > 0 && prof !== 'non-technical' && (
                     <>
                       <h3 className="guide-h3">
-                        {prof === 'non-technical' ? 'How the parts work together' : 'The pipeline — how layers talk'}
+                        {prof === 'beginner' ? 'The pipeline — how layers talk' : 'Inter-layer dependency counts'}
                       </h3>
                       <p className="guide-lede">
-                        {prof === 'non-technical'
-                          ? 'Each box is a kind of work the business does. The arrows show which kinds rely on which:'
-                          : prof === 'beginner'
-                            ? 'Think of the app as floors in a building. Work starts at the top and flows down:'
-                            : 'Inter-layer dependency counts:'}
+                        {prof === 'beginner'
+                          ? 'Think of the app as floors in a building. Work starts at the top and flows down:'
+                          : 'Inter-layer dependency counts:'}
                       </p>
                       <div className="guide-pipe">
                         {flow.pipeline.map((p, i) => (
@@ -405,6 +447,26 @@ export default function RepoGuide({
                       </div>
                     </>
                   )}
+                  {prof === 'non-technical' && (() => {
+                    const story = businessStory(graph);
+                    return (
+                      <>
+                        <h3 className="guide-h3">What this app is</h3>
+                        <p className="guide-lede">This repo is {story.what}.</p>
+                        <h3 className="guide-h3">The parts of the business</h3>
+                        <div className="guide-story-parts">
+                          {story.parts.map((p, i) => (
+                            <div className="guide-story-part" key={i}>
+                              <span className="guide-story-name">{p.name}</span>
+                              <span className="guide-story-desc">{p.desc}</span>
+                            </div>
+                          ))}
+                        </div>
+                        <h3 className="guide-h3">Follow one request</h3>
+                        <p className="guide-lede">{story.journey}</p>
+                      </>
+                    );
+                  })()}
                 </>
               ) : (
                 <p className="guide-empty">No clear entry point detected in this repo.</p>

@@ -1,5 +1,8 @@
 # Changelog
 
+## 1.14.2 — 2026-10-10
+- Business flow tab rewritten for non-technical: the confusing layer-count pairs ("UI Component → 11 Service") are gone, replaced with plain-language "what this app is", "parts of the business" cards, and a follow-one-request journey. File action buttons (Listen/Diagram/Blast) now show their text labels on mobile — no more mystery icons.
+
 ## 1.14.1 — 2026-10-10
 - Removed the duplicated proficiency picker from Settings (it lives in the topbar only now).
 
