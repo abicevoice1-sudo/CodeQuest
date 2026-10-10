@@ -226,7 +226,7 @@ function guessLayer(rel, isEntry, isTest) {
   if (isTest) return 'Test';
   if (isEntry) return 'Entry';
   if (/middleware/.test(p)) return 'Middleware';
-  if (/(^|\/)(routes?|router|controllers?|handlers?|api)(\/|$)/.test(p)) return 'API Route';
+  if (/(^|\/)(routes?|router|controllers?|handlers?|api|urls\.py|views\.py)(\/|$)/.test(p)) return 'API Route';
   if (/(^|\/)(services?|lib)(\/|$)/.test(p)) return 'Service';
   if (/(^|\/)(models?|schemas?|entities)(\/|$)/.test(p)) return 'Model/Schema';
   if (/(^|\/)(db|database|repositories?|dao)(\/|$)/.test(p)) return 'Data Access';
@@ -245,20 +245,51 @@ function isTestFile(rel) {
     /_test\.go$/.test(p);
 }
 
-function detectEntry(content, lang) {
+function detectEntry(content, lang, rel, ctx) {
+  const p = rel.toLowerCase();
   if (lang === 'javascript' || lang === 'typescript') {
-    return /app\.(get|post|put|patch|delete|use|listen)\s*\(/.test(content) ||
-      /createServer\s*\(/.test(content) || /program\.(command|parse)\s*\(/.test(content);
+    if (/app\.(get|post|put|patch|delete|use|listen)\s*\(/.test(content)) return true; // express
+    if (/createBrowserRouter\s*\(/.test(content)) return true; // react-router
+    // next.js page routes — only when the repo is actually a Next.js app
+    if (ctx.isNextJs && /(^|\/)app\//.test(p) && /page\.[a-z]+$/.test(p)) return true;
+    if (/createServer\s*\(/.test(content) || /program\.(command|parse)\s*\(/.test(content)) return true;
+    return false;
   }
-  if (lang === 'python') return /if\s+__name__\s*==\s*['"]__main__['"]/.test(content);
+  if (lang === 'python') {
+    if (/if\s+__name__\s*==\s*['"]__main__['"]/.test(content)) return true;
+    if (/@app\.(get|post|put|patch|delete|route)\s*\(/.test(content)) return true; // flask/fastapi
+    if (/@(router|api)\.(get|post|put|patch|delete|route)\s*\(/.test(content)) return true; // fastapi router
+    if (/urlpatterns\s*=/.test(content)) return true; // django urls
+    return false;
+  }
   if (lang === 'go') return /^\s*func\s+main\s*\(/m.test(content);
-  if (lang === 'java') return /public\s+static\s+void\s+main\s*\(/.test(content);
+  if (lang === 'java') {
+    if (/public\s+static\s+void\s+main\s*\(/.test(content)) return true;
+    if (/@SpringBootApplication/.test(content)) return true;
+    if (/@RestController/.test(content)) return true;
+    return false;
+  }
+  if (lang === 'ruby') {
+    if (/Rails\.application\.routes\.draw/.test(content)) return true;
+    if (/<\s*ApplicationController/.test(content)) return true;
+    return false;
+  }
+  if (lang === 'php') {
+    if (/Route::(get|post|put|patch|delete)\s*\(/.test(content)) return true; // laravel
+    if (/Artisan::/.test(content)) return true;
+    return false;
+  }
   return false;
 }
 
 function buildGraph(root) {
   const files = walk(root, root);
   const aliases = loadAliases(root);
+  const ctx = {
+    // next.js repo signals — gates the app/page.tsx entry heuristic
+    isNextJs: ['next.config.js', 'next.config.mjs', 'next.config.ts'].some(f =>
+      fs.existsSync(path.join(root, f))),
+  };
   const modules = new Map();
   for (const rel of files) {
     const ext = path.extname(rel).toLowerCase();
@@ -269,7 +300,7 @@ function buildGraph(root) {
     const parser = PARSERS[lang] || (() => ({ imports: [], exports: [] }));
     const { imports, exports } = parser(lines);
     const test = isTestFile(rel);
-    const entry = !test && detectEntry(content, lang);
+    const entry = !test && detectEntry(content, lang, rel, ctx);
     modules.set(rel, {
       id: rel, path: rel, lang, lines: lines.length,
       exports, isTest: test, isEntry: entry,

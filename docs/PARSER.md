@@ -39,3 +39,18 @@ If a repo outgrows this scanner, the honest next step is tree-sitter WASM gramma
 language, keeping the same graph JSON contract (`.codequest/graph.json`) so every prompt,
 skill, MCP tool, and CI check keeps working unchanged. The contract is the moat; the parser
 is swappable.
+
+## Benchmarks
+
+Measured with `time bin/codequest scan` (Node 24, Linux):
+
+| Repo | Modules | Edges | Entries | Time |
+|---|---|---|---|---|
+| examples/sample-app | 11 | 12 | 2 | <0.1s |
+| examples/edge-cases | 18 | 11 | 7 | <0.1s |
+| Real React + PHP production app | 250 | 267 | 3 | 0.23s |
+
+Entry detection is precision-tuned: an early heuristic flagged 52 false-positive entries
+on the production app (every file under `pages/`); gating framework heuristics on repo
+signals (e.g. `next.config.*`) brought it to the true 3. All 13 analyzer tests
+(`node --test codequest/tests/`) assert this behavior.
