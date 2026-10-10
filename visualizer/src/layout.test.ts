@@ -35,7 +35,7 @@ describe('blastRadius', () => {
 
 describe('layoutGraph', () => {
   it('lays out one node per shown module', () => {
-    const { nodes, edges } = layoutGraph(graph, { hideTests: false, hideAssets: false, layers: allLayers, risks: allRisks });
+    const { nodes, edges } = layoutGraph(graph, { hideTests: false, hideAssets: false, keyOnly: false, layers: allLayers, risks: allRisks });
     expect(nodes).toHaveLength(4);
     expect(edges).toHaveLength(2);
     for (const n of nodes) {
@@ -45,14 +45,14 @@ describe('layoutGraph', () => {
   });
 
   it('hides test files on demand', () => {
-    const { nodes, counts } = layoutGraph(graph, { hideTests: true, hideAssets: false, layers: allLayers, risks: allRisks });
+    const { nodes, counts } = layoutGraph(graph, { hideTests: true, hideAssets: false, keyOnly: false, layers: allLayers, risks: allRisks });
     expect(nodes).toHaveLength(3);
     expect(counts.hidden).toBe(1);
   });
 
   it('filters by risk', () => {
     const { nodes } = layoutGraph(graph, {
-      hideTests: false, hideAssets: false, layers: allLayers,
+      hideTests: false, hideAssets: false, keyOnly: false, layers: allLayers,
       risks: new Set(['CRITICAL']),
     });
     expect(nodes.map((n) => n.id)).toEqual(['c.ts']);
@@ -60,7 +60,7 @@ describe('layoutGraph', () => {
 
   it('drops edges touching hidden nodes', () => {
     const { edges } = layoutGraph(graph, {
-      hideTests: false, hideAssets: false,
+      hideTests: false, hideAssets: false, keyOnly: false,
       layers: new Set(['entry']), risks: allRisks,
     });
     expect(edges).toHaveLength(0);

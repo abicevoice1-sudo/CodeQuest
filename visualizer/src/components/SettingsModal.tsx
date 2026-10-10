@@ -1,9 +1,33 @@
 import { useState } from 'react';
 import { loadAISettings, saveAISettings } from '../lib/ai';
+import { PROFICIENCY_LABELS, PROFICIENCY_ORDER, type Proficiency } from '../lib/narrate';
+import { THEMES, type ThemeId } from '../lib/theme';
 
 interface EnvMatch { key: string; score: number; masked: string; }
 
-export function SettingsModal({ onClose, serverMode }: { onClose: () => void; serverMode: boolean }) {
+const PROF_HINTS: Record<Proficiency, string> = {
+  'non-technical': 'Business view — why it matters',
+  'beginner': 'Plain language, no jargon',
+  'junior': 'Guided, terms explained',
+  'senior': 'Dense, mechanism-first',
+  'lead': 'Architecture and trade-offs',
+};
+
+export function SettingsModal({
+  onClose,
+  serverMode,
+  proficiency,
+  setProficiency,
+  theme,
+  setTheme,
+}: {
+  onClose: () => void;
+  serverMode: boolean;
+  proficiency: Proficiency;
+  setProficiency: (p: Proficiency) => void;
+  theme: ThemeId;
+  setTheme: (t: ThemeId) => void;
+}) {
   const [s, setS] = useState(loadAISettings());
   const [saved, setSaved] = useState(false);
   const [permAsk, setPermAsk] = useState(false);
@@ -32,8 +56,6 @@ export function SettingsModal({ onClose, serverMode }: { onClose: () => void; se
   };
 
   const useMatch = (m: EnvMatch) => {
-    // Server only returns masked previews — copy the variable name so the
-    // user can grab the real value from their own .env.
     navigator.clipboard?.writeText(m.key).catch(() => {});
     setCopiedKey(m.key);
     setTimeout(() => setCopiedKey(''), 1500);
@@ -41,8 +63,40 @@ export function SettingsModal({ onClose, serverMode }: { onClose: () => void; se
 
   return (
     <div className="modal-backdrop" onClick={onClose}>
-      <div className="modal" onClick={(e) => e.stopPropagation()}>
-        <h3>⚙ AI settings</h3>
+      <div className="modal modal-wide" onClick={(e) => e.stopPropagation()}>
+        <h3>⚙ Settings</h3>
+
+        <h4 className="modal-sec">Experience</h4>
+        <p className="modal-sub">How technical are you? Explanations adapt to your level.</p>
+        <div className="prof-grid">
+          {PROFICIENCY_ORDER.map((p) => (
+            <button
+              key={p}
+              className={`prof-opt${proficiency === p ? ' on' : ''}`}
+              onClick={() => setProficiency(p)}
+            >
+              <span className="prof-opt-name">{PROFICIENCY_LABELS[p]}</span>
+              <span className="prof-opt-hint">{PROF_HINTS[p]}</span>
+            </button>
+          ))}
+        </div>
+
+        <h4 className="modal-sec">Appearance</h4>
+        <div className="theme-grid">
+          {THEMES.map((t) => (
+            <button
+              key={t.id}
+              className={`theme-opt${theme === t.id ? ' on' : ''}`}
+              onClick={() => setTheme(t.id)}
+            >
+              <span className="theme-swatch" data-swatch={t.id} />
+              <span className="prof-opt-name">{t.label}</span>
+              <span className="prof-opt-hint">{t.hint}</span>
+            </button>
+          ))}
+        </div>
+
+        <h4 className="modal-sec">AI explain</h4>
         <p className="modal-sub">
           File explanations call an LLM with your own key. The key never leaves your browser
           except to the endpoint below. Any OpenAI-compatible API works.

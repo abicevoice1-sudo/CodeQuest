@@ -155,3 +155,23 @@ describe('narrateFile proficiency', () => {
     expect(migrateProficiency(null)).toBe('junior');
   });
 });
+
+describe('describeColumn', () => {
+  it('explains columns in business terms for non-technical', async () => {
+    const { describeColumn } = await import('./lib/columns');
+    expect(describeColumn('email', 'text', 'users', 'non-technical')).toContain("customer's email");
+    expect(describeColumn('user_id', 'integer', 'orders', 'non-technical')).toContain('orders');
+    expect(describeColumn('total', 'real', 'orders', 'non-technical')).toContain('Money');
+  });
+
+  it('is terse for senior/lead', async () => {
+    const { describeColumn } = await import('./lib/columns');
+    expect(describeColumn('id', 'integer', 'users', 'lead')).toBe('PK integer.');
+    expect(describeColumn('user_id', 'integer', 'orders', 'senior')).toContain('FK');
+  });
+
+  it('guides juniors', async () => {
+    const { describeColumn } = await import('./lib/columns');
+    expect(describeColumn('password_hash', 'text', 'users', 'junior').toLowerCase()).toContain('never');
+  });
+});

@@ -28,6 +28,7 @@ import { SettingsModal } from './components/SettingsModal';
 import RepoGuide from './components/RepoGuide';
 import { parseVoiceCommand, resolveTarget, speak, startListening, voiceSupported } from './lib/voice';
 import { narrateFile, migrateProficiency, PROFICIENCY_LABELS, PROFICIENCY_ORDER, type Narration, type Proficiency } from './lib/narrate';
+import { loadTheme, saveTheme, applyTheme, type ThemeId } from './lib/theme';
 
 /* ------------------------------------------------------------------ */
 /* Custom node                                                         */
@@ -116,8 +117,15 @@ export default function App() {
       cycles: [],
     };
   }, [graph, scope]);
-  const [hideTests, setHideTests] = useState(false);
-  const [hideAssets, setHideAssets] = useState(false);
+  const [hideTests, setHideTests] = useState(
+    () => typeof window !== 'undefined' && window.innerWidth < 900,
+  );
+  const [hideAssets, setHideAssets] = useState(
+    () => typeof window !== 'undefined' && window.innerWidth < 900,
+  );
+  const [keyOnly, setKeyOnly] = useState(
+    () => typeof window !== 'undefined' && window.innerWidth < 900,
+  );
   const [layers, setLayers] = useState<Set<string>>(new Set());
   const [risks, setRisks] = useState<Set<string>>(new Set(['CRITICAL', 'HIGH', 'MEDIUM', 'LOW']));
   const [error, setError] = useState('');
@@ -144,6 +152,12 @@ export default function App() {
     try { localStorage.setItem('codequest.proficiency', p); } catch { /* noop */ }
     setShowWelcome(false);
   }, []);
+  const [theme, setThemeState] = useState<ThemeId>(() => loadTheme());
+  const pickTheme = useCallback((t: ThemeId) => {
+    setThemeState(t);
+    saveTheme(t);
+  }, []);
+  useEffect(() => { applyTheme(loadTheme()); }, []);
   const serverMode =
     typeof window !== 'undefined' &&
     !!(window as unknown as { __CODEQUEST_GRAPH__?: unknown }).__CODEQUEST_GRAPH__;
@@ -179,13 +193,17 @@ export default function App() {
     setScope({ kind: 'repo' });
     setError('');
     // Large repos: declutter by default so the graph stays readable.
-    if (g.modules.length > 400) {
+    // Small screens: also declutter — 180 nodes don't fit on a phone.
+    const smallScreen = typeof window !== 'undefined' && window.innerWidth < 900;
+    if (g.modules.length > 400 || smallScreen) {
       setHideTests(true);
       setHideAssets(true);
-      setTip('Large repo — tests & configs hidden. Toggle them in Show.');
+      setKeyOnly(smallScreen);
+      if (g.modules.length > 400) setTip('Large repo — tests & configs hidden. Toggle them in Show.');
     } else {
       setHideTests(false);
       setHideAssets(false);
+      setKeyOnly(false);
     }
   }, []);
 
@@ -195,6 +213,7 @@ export default function App() {
     const { nodes: ns, edges: es, counts: c } = layoutGraph(viewGraph, {
       hideTests,
       hideAssets,
+      keyOnly,
       layers: layers.size ? layers : new Set(allLayers),
       risks,
     });
@@ -203,7 +222,7 @@ export default function App() {
     setCounts(c);
     setSelectedId(null);
     setBlast(null);
-  }, [viewGraph, hideTests, hideAssets, layers, risks]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [viewGraph, hideTests, hideAssets, keyOnly, layers, risks]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Try injected graph (VS Code extension) → ./graph.json → drop screen.
   useEffect(() => {
@@ -474,7 +493,7 @@ export default function App() {
     );
     setEdges((es) =>
       es.map((e) => {
-        if (!blast) return { ...e, animated: false, style: { stroke: '#3f3f46', strokeWidth: 1.5 } };
+        if (!blast) return { ...e, animated: false, style: { stroke: 'var(--border-strong)', strokeWidth: 1.5 } };
         const a = blast.get(e.source);
         const b = blast.get(e.target);
         const inBlast = a !== undefined && b !== undefined && Math.abs(a - b) <= 1;
@@ -482,7 +501,7 @@ export default function App() {
           ...e,
           animated: inBlast,
           style: {
-            stroke: inBlast ? DEGREE_COLORS[Math.min(Math.max(a, b), 4)] : '#27272a',
+            stroke: inBlast ? DEGREE_COLORS[Math.min(Math.max(a, b), 4)] : 'var(--border-strong)',
             strokeWidth: inBlast ? 2.5 : 1,
           },
         };
@@ -632,12 +651,13 @@ export default function App() {
           <FilterPanel
             allLayers={allLayers}
             layerCounts={layerCounts}
-            f={{ layers, risks, hideTests, hideAssets }}
+            f={{ layers, risks, hideTests, hideAssets, keyOnly }}
             onChange={(nf) => {
               setLayers(nf.layers);
               setRisks(nf.risks);
               setHideTests(nf.hideTests);
               setHideAssets(nf.hideAssets);
+              setKeyOnly(nf.keyOnly);
             }}
           />
           <div className="flegend">
@@ -735,12 +755,13 @@ export default function App() {
             colorMode="dark"
             proOptions={{ hideAttribution: true }}
           >
-            <Background variant={BackgroundVariant.Dots} gap={28} size={1.5} color="#26262e" bgColor="#0a0a0c" />
+            <Background variant={BackgroundVariant.Dots} gap={28} size={1.5} color="var(--border)" bgColor="var(--bg)" />
             <Controls showInteractive={false} />
             <MiniMap
               pannable
               zoomable
-              style={{ background: '#101014', border: '1px solid #27272a', borderRadius: 8 }}
+              className="cq-minimap"
+              style={{ background: 'var(--bg-inset)', border: '1px solid var(--border-strong)', borderRadius: 8 }}
               nodeColor={(n) => RISK_COLORS[(n.data?.risk as Risk) || 'LOW']}
             />
           </ReactFlow>
@@ -833,7 +854,16 @@ export default function App() {
         </div>
       )}
       {voiceMsg && <div className="toast voice">{voiceMsg}</div>}
-      {showSettings && <SettingsModal serverMode={serverMode} onClose={() => setShowSettings(false)} />}
+      {showSettings && (
+        <SettingsModal
+          serverMode={serverMode}
+          proficiency={proficiency}
+          setProficiency={pickProf}
+          theme={theme}
+          setTheme={pickTheme}
+          onClose={() => setShowSettings(false)}
+        />
+      )}
       {showGuide && graph && (
         <RepoGuide
           graph={graph}

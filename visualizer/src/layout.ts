@@ -30,7 +30,7 @@ function nodeHeight(m: GraphModule): number {
 
 export function layoutGraph(
   g: CodeQuestGraph,
-  opts: { hideTests: boolean; hideAssets: boolean; layers: Set<string>; risks: Set<string> },
+  opts: { hideTests: boolean; hideAssets: boolean; keyOnly: boolean; layers: Set<string>; risks: Set<string> },
 ): { nodes: Node<CQNodeData>[]; edges: Edge[]; counts: { shown: number; hidden: number } } {
   const dag = new dagre.graphlib.Graph();
   dag.setGraph({ rankdir: 'LR', nodesep: 46, ranksep: 130, marginx: 40, marginy: 40 });
@@ -40,6 +40,7 @@ export function layoutGraph(
     (m) =>
       (!opts.hideTests || !m.isTest) &&
       (!opts.hideAssets || m.kind === 'code') &&
+      (!opts.keyOnly || m.isEntry || (m.fanIn || 0) >= 2 || m.risk === 'CRITICAL' || m.risk === 'HIGH') &&
       opts.layers.has(m.layer) &&
       opts.risks.has(m.risk || 'LOW'),
   );
@@ -55,7 +56,7 @@ export function layoutGraph(
       target: e.to,
       type: 'smoothstep',
       animated: false,
-      style: { stroke: '#3f3f46', strokeWidth: 1.5 },
+      style: { stroke: 'var(--border-strong)', strokeWidth: 1.5 },
     });
   }
   dagre.layout(dag);

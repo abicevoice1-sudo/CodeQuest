@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.14.0 — 2026-10-10
+- Columns now explain themselves: every table column gets a "why it exists / what it does" line, proficiency-aware like file narration (business terms for non-technical, terse for seniors).
+- Settings unified: one ⚙ panel now holds Experience (proficiency picker), Appearance (5 themes), and AI explain — no more scattered controls.
+- 5 themes: Dark, Light, VS Code Dark+, Monokai, Dracula — full CSS-variable theming across the app, graph, and guide.
+- Mobile homepage rebuilt: graph defaults to ⭐ Key files only (entries + highly-connected + hot) on small screens — 27 readable nodes instead of 180-node spaghetti. Minimap hidden on mobile. Desktop unchanged.
+
 ## 1.13.0 — 2026-10-10
 - Run tab v2: README-first — commands are pulled from the README's own instructions (marked "from README"), with Python venv flow (venv → activate → pip install → run) and monorepo subdir support. Port detection now weights entry files and ignores example/fixture dirs.
 - New 🏛 Architecture tab: layer map with dependency arrows, entry points, and top files per layer.

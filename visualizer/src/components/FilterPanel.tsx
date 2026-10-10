@@ -6,6 +6,7 @@ export interface FilterState {
   risks: Set<string>;
   hideTests: boolean;
   hideAssets: boolean;
+  keyOnly: boolean;
 }
 
 export function FilterPanel({
@@ -36,13 +37,15 @@ export function FilterPanel({
     (allLayers.length - f.layers.size) +
     (4 - f.risks.size) +
     (f.hideTests ? 1 : 0) +
-    (f.hideAssets ? 1 : 0);
+    (f.hideAssets ? 1 : 0) +
+    (f.keyOnly ? 1 : 0);
   const reset = () =>
     onChange({
       layers: new Set(allLayers),
       risks: new Set(['CRITICAL', 'HIGH', 'MEDIUM', 'LOW']),
       hideTests: false,
       hideAssets: false,
+      keyOnly: false,
     });
 
   return (
@@ -126,6 +129,10 @@ export function FilterPanel({
         <label className="toggle">
           <input type="checkbox" checked={!f.hideAssets} onChange={() => onChange({ ...f, hideAssets: !f.hideAssets })} />
           Configs & assets
+        </label>
+        <label className="toggle" title="Only entries, highly-connected, and high-risk files">
+          <input type="checkbox" checked={f.keyOnly} onChange={() => onChange({ ...f, keyOnly: !f.keyOnly })} />
+          ⭐ Key files only
         </label>
       </section>
         </>

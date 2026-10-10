@@ -2,6 +2,7 @@ import { useState } from 'react';
 import type { CodeQuestGraph, RepoIntel, IntelTable } from '../types';
 import { shortName } from '../types';
 import { describeBusiness, type Proficiency } from '../lib/narrate';
+import { describeColumn } from '../lib/columns';
 
 type Prof = Proficiency;
 
@@ -38,7 +39,7 @@ function CopyBtn({ text }: { text: string }) {
   );
 }
 
-function TableCard({ t }: { t: IntelTable }) {
+function TableCard({ t, prof }: { t: IntelTable; prof: Prof }) {
   const [open, setOpen] = useState(false);
   return (
     <div className="guide-table">
@@ -46,6 +47,7 @@ function TableCard({ t }: { t: IntelTable }) {
         <span className="guide-table-name">🗂 {t.name}</span>
         <span className="guide-table-meta">
           {t.columns.length} columns · {t.orm} · {shortName(t.source)}
+          {t.orm === 'live' && <span className="guide-live">● live</span>}
         </span>
         <span className="guide-caret">{open ? '▾' : '▸'}</span>
       </button>
@@ -53,8 +55,11 @@ function TableCard({ t }: { t: IntelTable }) {
         <div className="guide-cols">
           {t.columns.map((c) => (
             <div className="guide-col" key={c.name}>
-              <code>{c.name}</code>
-              <span>{c.type}</span>
+              <div className="guide-col-head">
+                <code>{c.name}</code>
+                <span>{c.type}</span>
+              </div>
+              <p className="guide-col-why">{describeColumn(c.name, c.type, t.name, prof)}</p>
             </div>
           ))}
         </div>
@@ -458,7 +463,7 @@ export default function RepoGuide({
                           : 'Detected data model — tap a table for its columns:'}
                       </p>
                       {schema.tables.map((t) => (
-                        <TableCard key={`${t.orm}:${t.name}`} t={t} />
+                        <TableCard key={`${t.orm}:${t.name}`} t={t} prof={prof} />
                       ))}
                     </>
                   )}
@@ -517,7 +522,7 @@ export default function RepoGuide({
                         <span className="guide-live">● live</span>
                       </h3>
                       {liveSchema.tables.map((t) => (
-                        <TableCard key={'live:' + t.name} t={{ name: t.name, source: 'live database', columns: t.columns, orm: 'live' }} />
+                        <TableCard key={'live:' + t.name} t={{ name: t.name, source: 'live database', columns: t.columns, orm: 'live' }} prof={prof} />
                       ))}
                     </>
                   )}
