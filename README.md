@@ -21,6 +21,30 @@ cd /path/to/your-repo && ./codequest/bin/codequest scan
 Copilot reads `codequest/CODEQUEST.md` + the generated `.codequest/graph.json` and becomes the
 CodeQuest AI: grounded in a computed module graph, incapable of hallucinating your dependencies.
 
+## Requirements
+
+- **Node.js 18+** — for the analyzer only. No `npm install`, zero dependencies, works offline.
+- **VS Code + GitHub Copilot** (agent mode) — for the intelligence layer: slash prompts + skills.
+
+## How the pieces run
+
+1. **Analyzer (deterministic, offline).** `./codequest/bin/codequest scan` walks the repo,
+   parses imports/exports (JS/TS, Python, Go, Java, Ruby, PHP), resolves them to files,
+   and writes `.codequest/graph.json` (the module graph) + `.codequest/repo-map.md`.
+   Other commands read that graph: `blast-radius` (upstream + downstream by degree, risk,
+   affected tests), `story` (static trace from an entry point), `modules`, `map`.
+   Add `--json` to any command for machine-readable output.
+2. **Slash prompts (Copilot).** The files in `codequest/.github/prompts/` are Copilot-native
+   `.prompt.md` prompts — agent mode picks them up automatically, so `/codequest-onboard`,
+   `/codequest-map`, `/codequest-blast-radius`, `/codequest-story`, `/codequest-whatif`,
+   and `/codequest-review` just work once the folder is in your repo.
+3. **Skills (Copilot agent mode).** `codequest/skills/*/` are Agent Skills
+   (`repo-cartographer`, `blast-radius`, `story-mode`, `what-if`) — invoke them from agent
+   mode for the full workflows (scan → verify by reading → write the report).
+4. **Instructions.** `codequest/.github/muse-instructions.md` auto-loads the CodeQuest boot
+   sequence; `codequest/.github/instructions/` enforces the analysis + formatting rules on
+   every file Copilot touches.
+
 ## What's in the pack
 
 ```
