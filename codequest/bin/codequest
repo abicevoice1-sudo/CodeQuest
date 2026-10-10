@@ -15,6 +15,7 @@
 
 const fs = require('fs');
 const path = require('path');
+const { execFileSync } = require('child_process');
 
 const VERSION = '1.0.0';
 const SKIP_DIRS = new Set(['node_modules', '.git', 'dist', 'build', 'coverage', '.next',
@@ -331,7 +332,7 @@ function detectEntry(content, lang, rel, ctx) {
   return false;
 }
 
-function buildGraph(root) {
+function buildGraph(root, extractedMap) {
   const files = walk(root, root);
   const aliases = loadAliases(root);
   const ctx = {
@@ -355,14 +356,29 @@ function buildGraph(root) {
       continue;
     }
     const lang = fk.lang;
-    const content = fs.readFileSync(full, 'utf8');
-    const lines = content.split('\n');
-    const parser = PARSERS[lang] || (() => ({ imports: [], exports: [] }));
-    const { imports, exports } = parser(lines);
+    let imports, exports, lineCount;
+    const te = extractedMap && extractedMap.get(rel);
+    if (te) {
+      // Tree-sitter AST extraction (zero false positives from comments/strings).
+      ({ imports, exports } = te);
+      lineCount = te.lines;
+    } else {
+      const content = fs.readFileSync(full, 'utf8');
+      const lines = content.split('\n');
+      const parser = PARSERS[lang] || (() => ({ imports: [], exports: [] }));
+      ({ imports, exports } = parser(lines));
+      lineCount = lines.length;
+    }
     const test = isTestFile(rel);
-    const entry = !test && detectEntry(content, lang, rel, ctx);
+    // Entry detection reuses the heuristic pass (cheap content read; the AST
+    // engine's job is import/export accuracy, not entry heuristics).
+    let entry = false;
+    if (!test) {
+      const content = fs.readFileSync(full, 'utf8');
+      entry = detectEntry(content, lang, rel, ctx);
+    }
     modules.set(rel, {
-      id: rel, path: rel, kind: 'code', lang, lines: lines.length,
+      id: rel, path: rel, kind: 'code', lang, lines: lineCount,
       exports, isTest: test, isEntry: entry,
       layer: guessLayer(rel, entry, test),
       imports: imports.map(im => ({
@@ -438,6 +454,18 @@ function findCycles(nodeIds, edges) {
 // --------------------------------------------------------------- commands ---
 
 const RISK_RANK = { LOW: 0, MEDIUM: 1, HIGH: 2, CRITICAL: 3 };
+
+function runTreeSitterExtract(dir) {
+  const engine = path.join(__dirname, '..', 'parsers', 'tree-sitter', 'extract.js');
+  if (!fs.existsSync(path.join(path.dirname(engine), 'node_modules'))) {
+    console.error('codequest: the tree-sitter engine needs its dependencies:\n' +
+      '  cd codequest/parsers/tree-sitter && npm install   (try --legacy-peer-deps on conflict)');
+    process.exit(2);
+  }
+  const out = execFileSync(process.execPath, [engine, dir],
+    { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
+  return new Map(JSON.parse(out).map(e => [e.rel, e]));
+}
 
 function loadGraphInput(input) {
   // Accepts a directory (uses .codequest/graph.json) or a graph.json path.
@@ -722,6 +750,39 @@ function cmdSetup(dir, packDir, asJson, flags) {
   return out(L.join('\n'));
 }
 
+function cmdHistory(dir, asJson) {
+  const g = loadGraphInput(dir);
+  const snap = {
+    at: new Date().toISOString(),
+    modules: g.modules.length, edges: g.edges.length,
+    cycles: (g.cycles || []).length,
+    entries: g.modules.filter(m => m.isEntry).length,
+    critical: g.modules.filter(m => m.risk === 'CRITICAL').length,
+    high: g.modules.filter(m => m.risk === 'HIGH').length,
+    engine: g.engine || 'regex',
+  };
+  const p = path.join(dir, '.codequest', 'history.jsonl');
+  fs.appendFileSync(p, JSON.stringify(snap) + '\n');
+  if (asJson) return out(JSON.stringify(snap, null, 2));
+  return out(`codequest: snapshot recorded → .codequest/history.jsonl (${snap.modules} modules, ${snap.critical} critical)`);
+}
+
+function cmdTrends(dir, asJson) {
+  const p = path.join(dir, '.codequest', 'history.jsonl');
+  if (!fs.existsSync(p)) return fail('no history yet — run `codequest history` to record snapshots', asJson);
+  const snaps = fs.readFileSync(p, 'utf8').trim().split('\n').filter(Boolean).map(l => JSON.parse(l));
+  if (asJson) return out(JSON.stringify(snaps, null, 2));
+  const L = ['# CodeQuest drift history', '',
+    '| Snapshot | Modules | Edges | Cycles | Entries | CRITICAL | HIGH |',
+    '|---|---|---|---|---|---|---|'];
+  snaps.forEach((s, i) => {
+    const prev = snaps[i - 1];
+    const d = (k) => prev ? (s[k] - prev[k] >= 0 ? `+${s[k] - prev[k]}` : `${s[k] - prev[k]}`) : '—';
+    L.push(`| ${s.at.slice(0, 10)} | ${s.modules} (${d('modules')}) | ${s.edges} (${d('edges')}) | ${s.cycles} | ${s.entries} | ${s.critical} (${d('critical')}) | ${s.high} (${d('high')}) |`);
+  });
+  return out(L.join('\n'));
+}
+
 function dependentsOf(g, id, maxDepth) {
   const byTarget = new Map();
   for (const e of g.edges) {
@@ -834,6 +895,7 @@ function repoMapMd(g) {
   L.push(`- Modules: ${g.modules.length} (${code.length} code, ${assets.length} assets)   Edges: ${g.edges.length}`);
   L.push(`- Languages: ${Object.entries(langs).map(([k, v]) => `${k} (${v})`).join(', ')}`);
   L.push(`- Audience: ${g.audience || 'professional'}${g.businessLens ? ' · business lens ON' : ''}`);
+  L.push(`- Engine: ${g.engine || 'regex'}${g.engine === 'tree-sitter' ? ' (AST)' : ' (zero-dep scanner)'}`);
   L.push(`- Generated: ${g.generatedAt} (codequest ${g.version}, deterministic static scan)`, '');
   L.push('## Entry points');
   L.push(entries.length ? entries.map(m => `- ${m.id} (${m.lang})`).join('\n') : '- (none detected)');
@@ -906,11 +968,14 @@ function main() {
       '  diff <old> <new>            architecture drift: old/new are dirs or graph.json paths',
       '  init [dir]                 write .codequest/config.json (audience + perspective)',
       '  setup [dir]                detect local IDEs/AI assistants and configure each one',
+      '  history [dir]              record a drift snapshot (.codequest/history.jsonl)',
+      '  trends [dir]               show drift history over time',
       '',
       'Add --json for machine-readable output.',
       'diff honors --fail-on <list>: comma list of critical,cycles,escalations (default: critical,cycles).',
       'init honors --audience <beginner|professional|expert> and --business (non-technical lens).',
       'setup honors --dry-run, --all, --ide <vscode,cursor,windsurf>.',
+      'scan honors --engine <regex|tree-sitter> (tree-sitter needs parsers/tree-sitter npm install).',
     ].join('\n'));
   }
 
@@ -926,15 +991,21 @@ function main() {
 
   if (cmd === 'scan') {
     const dir = dirOf(1);
-    const g = buildGraph(dir);
+    const engine = flags.engine || 'regex';
+    if (engine !== 'regex' && engine !== 'tree-sitter') {
+      return fail('engine must be regex or tree-sitter', asJson);
+    }
+    const extracted = engine === 'tree-sitter' ? runTreeSitterExtract(dir) : null;
+    const g = buildGraph(dir, extracted);
+    g.engine = engine;
     const cq = path.join(dir, '.codequest');
     fs.mkdirSync(cq, { recursive: true });
     fs.writeFileSync(path.join(cq, 'graph.json'), JSON.stringify(g, null, 2));
     fs.writeFileSync(path.join(cq, 'repo-map.md'), repoMapMd(g));
     const entryN = g.modules.filter(m => m.isEntry).length;
     return out(asJson
-      ? JSON.stringify({ modules: g.modules.length, edges: g.edges.length, entries: entryN })
-      : `codequest: scanned ${g.modules.length} modules, ${g.edges.length} import edges, ${entryN} entr${entryN === 1 ? 'y' : 'ies'} → .codequest/`);
+      ? JSON.stringify({ modules: g.modules.length, edges: g.edges.length, entries: entryN, engine })
+      : `codequest: scanned ${g.modules.length} modules, ${g.edges.length} import edges, ${entryN} entr${entryN === 1 ? 'y' : 'ies'} [engine: ${engine}] → .codequest/`);
   }
   if (cmd === 'map') return out(asJson
     ? JSON.stringify(loadGraph(dirOf(1)), null, 2)
@@ -986,6 +1057,8 @@ function main() {
     const packDir = path.join(__dirname, '..'); // codequest/bin/codequest → codequest/
     return cmdSetup(dirOf(1), packDir, asJson, flags);
   }
+  if (cmd === 'history') return cmdHistory(dirOf(1), asJson);
+  if (cmd === 'trends') return cmdTrends(dirOf(1), asJson);
   return fail(`unknown command "${cmd}" — try --help`, asJson);
 }
 

@@ -233,3 +233,35 @@ test('setup: detects IDEs/assistants and writes per-IDE config', () => {
   assert.ok(mcp.servers.codequest, 'mcp server wired');
   assert.ok(fs.existsSync(path.join(dir, '.codequest', 'setup.json')));
 });
+
+test('tree-sitter engine: edge parity with regex engine', () => {
+  const nm = path.join(ROOT, 'codequest', 'parsers', 'tree-sitter', 'node_modules');
+  if (!fs.existsSync(nm)) {
+    console.log('  (skip: tree-sitter deps not installed — cd codequest/parsers/tree-sitter && npm install)');
+    return;
+  }
+  const d1 = tmp(); cpdir(FIX_EDGE, d1); scan(d1);
+  const d2 = tmp(); cpdir(FIX_EDGE, d2);
+  execFileSync(process.execPath, [BIN, 'scan', d2, '--engine', 'tree-sitter'], { stdio: 'pipe' });
+  const g1 = JSON.parse(fs.readFileSync(path.join(d1, '.codequest', 'graph.json'), 'utf8'));
+  const g2 = JSON.parse(fs.readFileSync(path.join(d2, '.codequest', 'graph.json'), 'utf8'));
+  assert.equal(g2.engine, 'tree-sitter');
+  const e1 = new Set(g1.edges.map(e => e.from + '→' + e.to));
+  const e2 = new Set(g2.edges.map(e => e.from + '→' + e.to));
+  assert.deepEqual([...e2].sort(), [...e1].sort(), 'tree-sitter finds exactly the regex edges');
+});
+
+test('history records snapshots; trends shows them', () => {
+  const d = tmp(); cpdir(FIX_EDGE, d); scan(d);
+  const runCmd = (c) => execFileSync(process.execPath, [BIN, c, d], { encoding: 'utf8' });
+  runCmd('history');
+  const h1 = path.join(d, '.codequest', 'history.jsonl');
+  assert.ok(fs.existsSync(h1), 'history.jsonl created');
+  const snap = JSON.parse(fs.readFileSync(h1, 'utf8').trim().split('\n')[0]);
+  assert.ok(snap.at && typeof snap.modules === 'number' && snap.modules > 0, 'snapshot has fields');
+  runCmd('history');
+  const out = runCmd('trends');
+  assert.ok(out.includes('Drift history') || out.includes('drift'), 'trends prints a table');
+  const lines = fs.readFileSync(h1, 'utf8').trim().split('\n');
+  assert.equal(lines.length, 2, 'two snapshots recorded');
+});

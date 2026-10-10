@@ -1,0 +1,513 @@
+{
+  "version": "1.0.0",
+  "root": "/tmp/cqsample",
+  "generatedAt": "2026-10-10T00:36:16.195Z",
+  "audience": "professional",
+  "businessLens": false,
+  "modules": [
+    {
+      "id": "OrderController.java",
+      "path": "OrderController.java",
+      "kind": "code",
+      "lang": "java",
+      "lines": 5,
+      "exports": [
+        "OrderController"
+      ],
+      "isTest": false,
+      "isEntry": true,
+      "layer": "Entry",
+      "imports": [
+        {
+          "raw": "org.springframework.web.bind.annotation.RestController",
+          "line": 1,
+          "reexport": false,
+          "resolved": null
+        }
+      ],
+      "fanIn": 0,
+      "fanOut": 0,
+      "risk": "LOW"
+    },
+    {
+      "id": "api/urls.py",
+      "path": "api/urls.py",
+      "kind": "code",
+      "lang": "python",
+      "lines": 5,
+      "exports": [],
+      "isTest": false,
+      "isEntry": true,
+      "layer": "Entry",
+      "imports": [
+        {
+          "raw": "django.urls",
+          "line": 1,
+          "reexport": false,
+          "resolved": null
+        },
+        {
+          "raw": ".",
+          "line": 2,
+          "reexport": false,
+          "resolved": "api/views.py"
+        }
+      ],
+      "fanIn": 0,
+      "fanOut": 1,
+      "risk": "LOW"
+    },
+    {
+      "id": "api/views.py",
+      "path": "api/views.py",
+      "kind": "code",
+      "lang": "python",
+      "lines": 5,
+      "exports": [
+        "order_list"
+      ],
+      "isTest": false,
+      "isEntry": false,
+      "layer": "API Route",
+      "imports": [
+        {
+          "raw": "django.http",
+          "line": 1,
+          "reexport": false,
+          "resolved": null
+        }
+      ],
+      "fanIn": 1,
+      "fanOut": 0,
+      "risk": "LOW"
+    },
+    {
+      "id": "app/page.tsx",
+      "path": "app/page.tsx",
+      "kind": "code",
+      "lang": "typescript",
+      "lines": 4,
+      "exports": [
+        "Page"
+      ],
+      "isTest": false,
+      "isEntry": true,
+      "layer": "Entry",
+      "imports": [],
+      "fanIn": 0,
+      "fanOut": 0,
+      "risk": "LOW"
+    },
+    {
+      "id": "next.config.js",
+      "path": "next.config.js",
+      "kind": "code",
+      "lang": "javascript",
+      "lines": 3,
+      "exports": [
+        "module.exports"
+      ],
+      "isTest": false,
+      "isEntry": false,
+      "layer": "Domain",
+      "imports": [
+        {
+          "raw": "next",
+          "line": 1,
+          "reexport": false,
+          "resolved": null
+        }
+      ],
+      "fanIn": 0,
+      "fanOut": 0,
+      "risk": "LOW"
+    },
+    {
+      "id": "pkg/__init__.py",
+      "path": "pkg/__init__.py",
+      "kind": "code",
+      "lang": "python",
+      "lines": 1,
+      "exports": [],
+      "isTest": false,
+      "isEntry": false,
+      "layer": "Domain",
+      "imports": [],
+      "fanIn": 0,
+      "fanOut": 0,
+      "risk": "LOW"
+    },
+    {
+      "id": "pkg/cli.py",
+      "path": "pkg/cli.py",
+      "kind": "code",
+      "lang": "python",
+      "lines": 11,
+      "exports": [
+        "run"
+      ],
+      "isTest": false,
+      "isEntry": true,
+      "layer": "Entry",
+      "imports": [
+        {
+          "raw": ".helpers",
+          "line": 1,
+          "reexport": false,
+          "resolved": "pkg/helpers.py"
+        },
+        {
+          "raw": ".",
+          "line": 2,
+          "reexport": false,
+          "resolved": "pkg/core.py"
+        }
+      ],
+      "fanIn": 0,
+      "fanOut": 2,
+      "risk": "LOW"
+    },
+    {
+      "id": "pkg/core.py",
+      "path": "pkg/core.py",
+      "kind": "code",
+      "lang": "python",
+      "lines": 2,
+      "exports": [],
+      "isTest": false,
+      "isEntry": false,
+      "layer": "Domain",
+      "imports": [],
+      "fanIn": 1,
+      "fanOut": 0,
+      "risk": "LOW"
+    },
+    {
+      "id": "pkg/helpers.py",
+      "path": "pkg/helpers.py",
+      "kind": "code",
+      "lang": "python",
+      "lines": 3,
+      "exports": [
+        "build_greeting"
+      ],
+      "isTest": false,
+      "isEntry": false,
+      "layer": "Domain",
+      "imports": [],
+      "fanIn": 1,
+      "fanOut": 0,
+      "risk": "LOW"
+    },
+    {
+      "id": "src/a.ts",
+      "path": "src/a.ts",
+      "kind": "code",
+      "lang": "typescript",
+      "lines": 6,
+      "exports": [
+        "loopA"
+      ],
+      "isTest": false,
+      "isEntry": false,
+      "layer": "Domain",
+      "imports": [
+        {
+          "raw": "./b",
+          "line": 1,
+          "reexport": false,
+          "resolved": "src/b.ts"
+        }
+      ],
+      "fanIn": 1,
+      "fanOut": 1,
+      "risk": "LOW"
+    },
+    {
+      "id": "src/b.ts",
+      "path": "src/b.ts",
+      "kind": "code",
+      "lang": "typescript",
+      "lines": 6,
+      "exports": [
+        "loopB"
+      ],
+      "isTest": false,
+      "isEntry": false,
+      "layer": "Domain",
+      "imports": [
+        {
+          "raw": "./a",
+          "line": 1,
+          "reexport": false,
+          "resolved": "src/a.ts"
+        }
+      ],
+      "fanIn": 1,
+      "fanOut": 1,
+      "risk": "LOW"
+    },
+    {
+      "id": "src/barrel.ts",
+      "path": "src/barrel.ts",
+      "kind": "code",
+      "lang": "typescript",
+      "lines": 3,
+      "exports": [
+        "helper"
+      ],
+      "isTest": false,
+      "isEntry": false,
+      "layer": "Domain",
+      "imports": [
+        {
+          "raw": "./services/userService",
+          "line": 1,
+          "reexport": true,
+          "resolved": "src/services/userService.ts"
+        },
+        {
+          "raw": "./util",
+          "line": 2,
+          "reexport": true,
+          "resolved": "src/util.ts"
+        }
+      ],
+      "fanIn": 1,
+      "fanOut": 2,
+      "risk": "LOW"
+    },
+    {
+      "id": "src/index.ts",
+      "path": "src/index.ts",
+      "kind": "code",
+      "lang": "typescript",
+      "lines": 11,
+      "exports": [
+        "main"
+      ],
+      "isTest": false,
+      "isEntry": false,
+      "layer": "Domain",
+      "imports": [
+        {
+          "raw": "@/services/userService",
+          "line": 1,
+          "reexport": false,
+          "resolved": "src/services/userService.ts"
+        },
+        {
+          "raw": "./barrel",
+          "line": 2,
+          "reexport": false,
+          "resolved": "src/barrel.ts"
+        },
+        {
+          "raw": "@/types",
+          "line": 3,
+          "reexport": false,
+          "resolved": "src/types.ts"
+        }
+      ],
+      "fanIn": 0,
+      "fanOut": 3,
+      "risk": "LOW"
+    },
+    {
+      "id": "src/router.tsx",
+      "path": "src/router.tsx",
+      "kind": "code",
+      "lang": "typescript",
+      "lines": 4,
+      "exports": [
+        "router"
+      ],
+      "isTest": false,
+      "isEntry": true,
+      "layer": "Entry",
+      "imports": [
+        {
+          "raw": "react-router-dom",
+          "line": 1,
+          "reexport": false,
+          "resolved": null
+        }
+      ],
+      "fanIn": 0,
+      "fanOut": 0,
+      "risk": "LOW"
+    },
+    {
+      "id": "src/services/userService.ts",
+      "path": "src/services/userService.ts",
+      "kind": "code",
+      "lang": "typescript",
+      "lines": 9,
+      "exports": [
+        "createUser"
+      ],
+      "isTest": false,
+      "isEntry": false,
+      "layer": "Service",
+      "imports": [
+        {
+          "raw": "./util",
+          "line": 1,
+          "reexport": false,
+          "resolved": null
+        }
+      ],
+      "fanIn": 2,
+      "fanOut": 0,
+      "risk": "MEDIUM"
+    },
+    {
+      "id": "src/types.ts",
+      "path": "src/types.ts",
+      "kind": "code",
+      "lang": "typescript",
+      "lines": 2,
+      "exports": [],
+      "isTest": false,
+      "isEntry": false,
+      "layer": "Domain",
+      "imports": [],
+      "fanIn": 1,
+      "fanOut": 0,
+      "risk": "LOW"
+    },
+    {
+      "id": "src/util.ts",
+      "path": "src/util.ts",
+      "kind": "code",
+      "lang": "typescript",
+      "lines": 4,
+      "exports": [
+        "helper"
+      ],
+      "isTest": false,
+      "isEntry": false,
+      "layer": "Domain",
+      "imports": [],
+      "fanIn": 1,
+      "fanOut": 0,
+      "risk": "LOW"
+    },
+    {
+      "id": "tsconfig.json",
+      "path": "tsconfig.json",
+      "kind": "config",
+      "lang": "asset",
+      "lines": 0,
+      "size": 80,
+      "summary": "keys: compilerOptions",
+      "exports": [],
+      "imports": [],
+      "isTest": false,
+      "isEntry": false,
+      "layer": "Config",
+      "fanIn": 0,
+      "fanOut": 0,
+      "risk": "LOW"
+    },
+    {
+      "id": "web.php",
+      "path": "web.php",
+      "kind": "code",
+      "lang": "php",
+      "lines": 5,
+      "exports": [],
+      "isTest": false,
+      "isEntry": true,
+      "layer": "Entry",
+      "imports": [],
+      "fanIn": 0,
+      "fanOut": 0,
+      "risk": "LOW"
+    },
+    {
+      "id": "web/routes.py",
+      "path": "web/routes.py",
+      "kind": "code",
+      "lang": "python",
+      "lines": 8,
+      "exports": [
+        "read_items"
+      ],
+      "isTest": false,
+      "isEntry": true,
+      "layer": "Entry",
+      "imports": [
+        {
+          "raw": "fastapi",
+          "line": 1,
+          "reexport": false,
+          "resolved": null
+        }
+      ],
+      "fanIn": 0,
+      "fanOut": 0,
+      "risk": "LOW"
+    }
+  ],
+  "edges": [
+    {
+      "from": "api/urls.py",
+      "to": "api/views.py",
+      "line": 2
+    },
+    {
+      "from": "pkg/cli.py",
+      "to": "pkg/helpers.py",
+      "line": 1
+    },
+    {
+      "from": "pkg/cli.py",
+      "to": "pkg/core.py",
+      "line": 2
+    },
+    {
+      "from": "src/a.ts",
+      "to": "src/b.ts",
+      "line": 1
+    },
+    {
+      "from": "src/b.ts",
+      "to": "src/a.ts",
+      "line": 1
+    },
+    {
+      "from": "src/barrel.ts",
+      "to": "src/services/userService.ts",
+      "line": 1
+    },
+    {
+      "from": "src/barrel.ts",
+      "to": "src/util.ts",
+      "line": 2
+    },
+    {
+      "from": "src/index.ts",
+      "to": "src/services/userService.ts",
+      "line": 1
+    },
+    {
+      "from": "src/index.ts",
+      "to": "src/barrel.ts",
+      "line": 2
+    },
+    {
+      "from": "src/index.ts",
+      "to": "src/types.ts",
+      "line": 3
+    }
+  ],
+  "cycles": [
+    [
+      "src/a.ts",
+      "src/b.ts",
+      "src/a.ts"
+    ]
+  ],
+  "engine": "regex"
+}

@@ -77,6 +77,18 @@ const TOOLS = [
     },
     argv: (a) => ['diff', a.old, a.new],
   },
+  {
+    name: 'codequest_history',
+    description: 'Record a drift snapshot (modules, edges, cycles, risk counts) to .codequest/history.jsonl.',
+    inputSchema: { type: 'object', properties: { dir: { type: 'string' } } },
+    argv: (a) => ['history', a.dir || '.'],
+  },
+  {
+    name: 'codequest_trends',
+    description: 'Show drift history over time from recorded snapshots.',
+    inputSchema: { type: 'object', properties: { dir: { type: 'string' } } },
+    argv: (a) => ['trends', a.dir || '.'],
+  },
 ];
 
 function runTool(name, args) {

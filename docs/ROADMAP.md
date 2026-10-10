@@ -1,32 +1,36 @@
 # CodeQuest — road to top-in-the-world
 
-Where we are vs. world-class, dimension by dimension. Updated 2026-10-09.
+Where we are vs. world-class, dimension by dimension. Updated 2026-10-09 (v1.1.0).
 Rule: every claim here must be closable with a concrete artifact.
 
 ## 1. Engine: from import graphs to semantic graphs
 
-- **Now:** grammar-aware regex scanner; file-level import edges; 4 real languages.
-- **World-class:** tree-sitter WASM per language (real ASTs), **symbol-level call graphs**
-  (which function calls which, with confidence), type-aware edges, cross-language edges
-  (e.g. Python client → TS API route), incremental re-scan.
-- **Next:** tree-sitter upgrade keeping the `.codequest/graph.json` contract (see
-  `docs/PARSER.md`); then call-graph v1; then publish precision/recall benchmarks.
+- **Now:** two engines — `regex` (zero-dep scanner) and `tree-sitter` (real ASTs for
+  JS/TS/TSX/Python, 100% edge parity, per-file regex fallback); file-level import edges.
+- **World-class:** **symbol-level call graphs** (which function calls which, with
+  confidence), type-aware edges, cross-language edges (e.g. Python client → TS API route),
+  incremental re-scan.
+- **Next:** call-graph v1 on top of the tree-sitter engine; then publish precision/recall
+  benchmarks.
 
 ## 2. Experience: from Markdown to the adventure
 
-- **Now:** CLI + MCP + Markdown reports. Zero visualization.
-- **World-class:** interactive knowledge graph (pan/zoom, bidirectional code↔diagram sync),
-  story-mode scrollytell, blast-radius heatmaps. The tagline promises adventure; text
-  tables don't deliver it.
-- **Next:** revive the visualizer as a static web app that reads `.codequest/graph.json`
-  (the killed scaffold returns in its correct role: *visualizer*, not replacement).
+- **Now:** CLI + MCP + Markdown reports **+ visualizer** (`visualizer/`): dark interactive
+  dependency graph (dagre layout, node inspector, blast-radius heatmap, search, layer/risk
+  filters), reads any `.codequest/graph.json`.
+- **World-class:** bidirectional code↔diagram sync, story-mode scrollytell, hosted demo.
+- **Next:** code↔graph navigation in the extension (v1 ships click-to-file); story-mode
+  animation; public demo instance.
 
 ## 3. IDE depth: from guest to resident
 
-- **Now:** prompts, skills, custom agent, MCP server — guests in Copilot's house.
-- **World-class:** a VS Code extension: graph sidebar, click-to-navigate, inline
-  blast-radius codelens on save, "what breaks" hover.
-- **Next:** extension v1 (sidebar + codelens), using the MCP server as its backend.
+- **Now:** prompts, skills, custom agent, MCP server **+ VS Code extension v1**
+  (`extensions/vscode/codequest-1.1.0.vsix`): graph sidebar, click-to-file, one-command
+  rescan, engine setting.
+- **World-class:** inline blast-radius codelens on save, "what breaks" hover, JetBrains/Cursor
+  native ports.
+- **Next:** codelens + hover (extension v2); publish to Marketplace; verify auto-load
+  conventions per IDE on real installs.
 
 ## 4. Coverage: from 4 languages to the ecosystem
 

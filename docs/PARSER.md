@@ -33,12 +33,23 @@ it does and where it stops, so no one mistakes its output for a type-checked bui
    as "look here first," not a verdict.
 5. **Cycles** are import-graph cycles; some are intentional (type-only cycles in TS).
 
+## Engines
+
+| Engine | Command | How it works |
+|---|---|---|
+| `regex` (default) | `codequest scan` | Zero-dependency grammar-aware scanner. No install, offline. |
+| `tree-sitter` | `codequest scan --engine tree-sitter` | Real AST parsing (tree-sitter grammars for JS/TS/TSX/Python). Import statements identified structurally — zero false positives from comments/strings. Per-file fallback to regex for Go/Java/Ruby/PHP. Install: `cd codequest/parsers/tree-sitter && npm install`. |
+
+Both engines emit the identical `.codequest/graph.json` contract, so prompts, skills, MCP
+tools, and CI work unchanged. Verified: 100% edge parity between engines on the
+`examples/edge-cases` fixture (asserted by the test suite).
+
 ## Upgrade path
 
-If a repo outgrows this scanner, the honest next step is tree-sitter WASM grammars per
-language, keeping the same graph JSON contract (`.codequest/graph.json`) so every prompt,
-skill, MCP tool, and CI check keeps working unchanged. The contract is the moat; the parser
-is swappable.
+~~If a repo outgrows this scanner, the honest next step is tree-sitter WASM grammars~~ —
+done (see above; native bindings, not WASM, after WASM ABI mismatch blocked the browser
+build). Next frontier: **symbol-level call graphs** (which function calls which), still
+file-level today.
 
 ## Benchmarks
 

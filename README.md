@@ -91,13 +91,40 @@ Copilot agent mode (/codequest-*)     # intelligence: summaries, narratives, jud
 
 ```bash
 ./codequest/bin/codequest scan [dir]            # build .codequest/graph.json + repo-map.md
+./codequest/bin/codequest scan --engine tree-sitter   # AST-accurate parsing (JS/TS/TSX/Python)
 ./codequest/bin/codequest map [dir]             # print the repo map
 ./codequest/bin/codequest modules [dir]         # list modules + exports
 ./codequest/bin/codequest blast-radius <file>   # upstream, downstream by degree, risk, affected tests
 ./codequest/bin/codequest story <entry-file>    # static execution trace from an entry point
 ./codequest/bin/codequest diff <old> <new>      # architecture drift gate for CI (fails on new CRITICAL/cycles)
+./codequest/bin/codequest history [dir]         # record a drift snapshot
+./codequest/bin/codequest trends [dir]          # show drift history over time
 # add --json to any command for machine-readable output
 ```
+
+## Parser engines
+
+- `regex` (default): zero-dependency, offline, 8 languages + config/doc/image/PDF inventory.
+- `tree-sitter`: real AST parsing for JS/TS/TSX/Python — import statements identified
+  structurally, zero false positives from comments/strings. Per-file fallback to regex for
+  other languages. `cd codequest/parsers/tree-sitter && npm install`, then
+  `codequest scan --engine tree-sitter`. Both engines emit the identical `graph.json` contract.
+
+## Visualizer
+
+`visualizer/` is a dark, interactive dependency-graph UI that reads any `graph.json`:
+dagre layout, node inspector (exports/imports/dependents), **blast-radius heatmap**,
+search, layer & risk filters. Run it:
+
+```bash
+cd visualizer && npm install && npm run dev     # then drop in .codequest/graph.json
+```
+
+## VS Code extension
+
+`extensions/vscode/` — sidebar dependency graph, click-to-file, one-command rescan.
+Install `extensions/vscode/codequest-1.1.0.vsix` via
+`code --install-extension`, or build from source (see its README).
 
 ## Try it
 
@@ -114,6 +141,8 @@ and see `examples/outputs/` for what the analyzer produces.
 - `docs/ADOPTION.md` — the 10-team trial playbook
 - `docs/IDE_SUPPORT.md` — IDE & AI assistant support matrix
 - `docs/ROADMAP.md` — gap analysis → top-in-the-world, phased
+- `docs/LAUNCH.md` — launch checklist, 2-minute demo script, Show HN draft
+- `CHANGELOG.md` — version history
 
 ## Privacy
 
