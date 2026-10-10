@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { loadAISettings, saveAISettings } from '../lib/ai';
 import { getVoices, groupVoices, loadVoiceSettings, saveVoiceSettings, speak } from '../lib/voice';
+import { loadJiraSettings, saveJiraSettings, testJiraConnection, jiraConfigured } from '../lib/jira';
 import { THEMES, type ThemeId } from '../lib/theme';
 
 interface EnvMatch { key: string; score: number; masked: string; }
@@ -24,6 +25,9 @@ export function SettingsModal({
   const [copiedKey, setCopiedKey] = useState('');
   const [vs, setVs] = useState(loadVoiceSettings());
   const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([]);
+  const [js, setJs] = useState(loadJiraSettings());
+  const [jiraTest, setJiraTest] = useState('');
+  const [jiraTesting, setJiraTesting] = useState(false);
 
   useEffect(() => { getVoices().then(setVoices); }, []);
   const voiceGroups = useMemo(() => groupVoices(voices), [voices]);
@@ -31,6 +35,7 @@ export function SettingsModal({
   const save = () => {
     saveAISettings({ ...s, endpoint: s.endpoint.trim().replace(/\/$/, ''), model: s.model.trim() });
     saveVoiceSettings(vs);
+    saveJiraSettings({ ...js, url: js.url.trim().replace(/\/$/, '') });
     setSaved(true);
     setTimeout(onClose, 700);
   };
@@ -38,6 +43,18 @@ export function SettingsModal({
   const previewVoice = () => {
     saveVoiceSettings(vs);
     speak('Hello! This is how I will sound when I explain your code.');
+  };
+
+  const testJira = async () => {
+    setJiraTesting(true);
+    setJiraTest('');
+    try {
+      const name = await testJiraConnection({ ...js, url: js.url.trim().replace(/\/$/, '') });
+      setJiraTest(`✓ Connected as ${name}`);
+    } catch (e) {
+      setJiraTest(`✗ ${e instanceof Error ? e.message : 'Connection failed.'}`);
+    }
+    setJiraTesting(false);
   };
 
   const pickVoice = (uri: string) => {
@@ -129,6 +146,28 @@ export function SettingsModal({
         <button className="ghost small" onClick={previewVoice} style={{ marginBottom: 10 }}>
           🔊 Preview voice
         </button>
+
+        <h4 className="modal-sec">Jira — business context</h4>
+        <p className="modal-sub">
+          Connect Jira to link code to tickets. Business people see <em>why</em> a file
+          exists; devs see the story, priority, and who's waiting on it. Credentials stay in your browser.
+        </p>
+        <label>Jira URL
+          <input value={js.url} onChange={(e) => setJs({ ...js, url: e.target.value })} placeholder="https://yourcompany.atlassian.net" />
+        </label>
+        <label>Email
+          <input value={js.email} onChange={(e) => setJs({ ...js, email: e.target.value })} placeholder="you@company.com" />
+        </label>
+        <label>API token
+          <input type="password" value={js.apiToken} onChange={(e) => setJs({ ...js, apiToken: e.target.value })} placeholder="Create at Atlassian → Account → Security" />
+        </label>
+        <label>Project key <span className="modal-opt">(optional)</span>
+          <input value={js.projectKey} onChange={(e) => setJs({ ...js, projectKey: e.target.value.toUpperCase() })} placeholder="PROJ" />
+        </label>
+        <button className="ghost small" onClick={testJira} disabled={jiraTesting} style={{ marginBottom: 10 }}>
+          {jiraTesting ? 'Testing…' : jiraConfigured(js) ? '🔗 Test connection' : '🔗 Connect Jira'}
+        </button>
+        {jiraTest && <p className="modal-sub">{jiraTest}</p>}
 
         <h4 className="modal-sec">AI explain</h4>
         <p className="modal-sub">

@@ -3,6 +3,7 @@ import { RISK_COLORS, shortName, type GraphEdge, type GraphModule } from '../typ
 import { langOf } from '../lib/highlight';
 import { CodePanel } from './CodePanel';
 import { ExplainPanel } from './ExplainPanel';
+import { JiraIssues } from './JiraIssues';
 import type { ExplainContext } from '../lib/ai';
 import type { Narration } from '../lib/narrate';
 
@@ -129,6 +130,7 @@ export function FileDetail({
                 <span>◉</span> Blast radius
                 <span className="fd-blast-hint">see what breaks</span>
               </button>
+              <JiraIssues filePath={module.path} code={code} />
               {inVsCode && (
                 <button
                   className="ghost small"
