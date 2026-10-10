@@ -1,5 +1,8 @@
 # Changelog
 
+## 1.12.0 — 2026-10-10
+- App guide (📖 Guide): a full repo briefing — how to run it (commands, port, README quickstart), the standard app flow, database engines + tables/columns (Prisma, SQL, Mongoose, SQLAlchemy, Django), and why the top connections exist. Proficiency is now a 5-level ladder: Non-technical, Beginner, Junior / Senior / Lead Developer. Non-technical readers get a true business lens: the guide becomes a business flow, and every file explains what the business needs it for and what customers feel if it breaks.
+
 ## 1.11.0 — 2026-10-10
 - Mobile UI repaired, verified with real headless-browser screenshots: the header no longer overlaps (stats move off the small screen), the About/Code tab switcher actually appears (a CSS specificity bug had kept it invisible), the explorer yields the full screen when a file is open, and the top bar wraps cleanly. File actions now have text labels (Listen / Diagram / Blast) on desktop.
 

@@ -92,13 +92,12 @@ describe('narrateFile', () => {
       ],
     } as never;
     const n = narrateFile('a.js', graph);
-    expect(n.purpose).toContain('a.js is an app module');
-    expect(n.purpose).toContain('entry point');
+    expect(n.purpose).toContain('a.js is an entry point');
     expect(n.purpose).toContain('2 files import it');
-    expect(n.impact).toContain('ripple through');
+    expect(n.impact).toContain('Blast radius');
     expect(n.impact).toContain('HIGH');
-    const iso = narrateFile('c.js', graph);
-    expect(iso.impact).toContain('ripple through');
+    const downstream = narrateFile('c.js', graph);
+    expect(downstream.impact).toContain('Blast radius');
   });
 });
 
@@ -120,17 +119,39 @@ describe('narrateFile proficiency', () => {
     expect(n.impact).toContain('could break');
   });
 
-  it('expert tone is terse', async () => {
+  it('lead tone is terse and architectural', async () => {
     const { narrateFile } = await import('./lib/narrate');
-    const n = narrateFile('a.js', graph, 'expert');
-    expect(n.purpose).toContain('Entry');
-    expect(n.impact).toContain('Blast radius');
+    const n = narrateFile('a.js', graph, 'lead');
+    expect(n.purpose).toContain('ENTRY');
+    expect(n.impact).toContain('Downstream');
     expect(n.purpose.length).toBeLessThan(220);
   });
 
-  it('defaults to developer tone', async () => {
+  it('non-technical tone speaks business, not code', async () => {
+    const { narrateFile } = await import('./lib/narrate');
+    const n = narrateFile('a.js', graph, 'non-technical');
+    expect(n.purpose).toContain('front door');
+    expect(n.purpose).not.toContain('module');
+    expect(n.impact).toContain('customers');
+  });
+
+  it('junior tone guides with terms explained', async () => {
+    const { narrateFile } = await import('./lib/narrate');
+    const n = narrateFile('a.js', graph, 'junior');
+    expect(n.purpose).toContain('entry point');
+  });
+
+  it('defaults to junior tone', async () => {
     const { narrateFile } = await import('./lib/narrate');
     const n = narrateFile('a.js', graph);
     expect(n.purpose).toContain('entry point');
+  });
+
+  it('migrates old proficiency values', async () => {
+    const { migrateProficiency } = await import('./lib/narrate');
+    expect(migrateProficiency('developer')).toBe('junior');
+    expect(migrateProficiency('expert')).toBe('lead');
+    expect(migrateProficiency('beginner')).toBe('beginner');
+    expect(migrateProficiency(null)).toBe('junior');
   });
 });

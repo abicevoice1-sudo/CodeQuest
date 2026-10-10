@@ -3,7 +3,8 @@
 const fs = require('fs');
 const path = require('path');
 const { execFileSync } = require('child_process');
-const VERSION = '1.11.0';
+const { buildIntel } = require('./intel');
+const VERSION = '1.12.0';
 const SKIP_DIRS = new Set(['node_modules', '.git', 'dist', 'build', 'coverage', '.next',
   'vendor', '__pycache__', '.venv', 'venv', 'target', '.codequest', '.idea', '.vscode']);
 const EXT_LANG = {
@@ -17,7 +18,7 @@ const ASSET_KIND = {
   '.md': 'doc', '.mdx': 'doc', '.rst': 'doc', '.txt': 'doc', '.pdf': 'doc',
   '.png': 'image', '.jpg': 'image', '.jpeg': 'image', '.gif': 'image', '.svg': 'image',
   '.webp': 'image', '.ico': 'image', '.bmp': 'image',
-  '.sql': 'data', '.csv': 'data', '.tsv': 'data',
+  '.sql': 'data', '.csv': 'data', '.tsv': 'data', '.prisma': 'config',
 };
 const ASSET_BASENAMES = { // dotfiles / extensionless, matched on lowercase basename
   'dockerfile': 'config', 'makefile': 'config', 'jenkinsfile': 'config',
@@ -91,9 +92,10 @@ function fmtSize(bytes) {
 
 function parseJS(lines) {
   const imports = [], exports = [];
-  const reImportFrom = /^\s*import\s+(?:[^'"]*?\s+from\s+)?['"]([^'"]+)['"]/;
+  const reImportFrom = /^\s*import\s+(?:([^'"]*?)\s+from\s+)?['"]([^'"]+)['"]/;
   const reExportFrom = /^\s*export\s+(?:[^'"]*?\s+from\s+)['"]([^'"]+)['"]/;
   const reExportStar = /^\s*export\s+\*\s*(?:as\s+[A-Za-z_$][\w$]*\s+)?from\s+['"]([^'"]+)['"]/;
+  const reRequireAssign = /^\s*(?:const|let|var)\s+(\{[^}]*\}|[A-Za-z_$][\w$]*)\s*=\s*require\s*\(\s*['"]([^'"]+)['"]\s*\)/;
   const reRequire = /(?:^|[^.\w$])require\s*\(\s*['"]([^'"]+)['"]\s*\)/;
   const reDynImport = /(?:^|[^.\w$])import\s*\(\s*['"]([^'"]+)['"]\s*\)/;
   const reExportDecl = /^\s*export\s+(?:default\s+)?(?:async\s+)?(?:function|class|const|let|var)\s+([A-Za-z_$][\w$]*)/;
@@ -103,8 +105,9 @@ function parseJS(lines) {
     const line = i + 1;
     let m;
     if ((m = ln.match(reExportStar))) imports.push({ raw: m[1], line, reexport: true });
-    else if ((m = ln.match(reImportFrom))) imports.push({ raw: m[1], line });
+    else if ((m = ln.match(reImportFrom))) imports.push({ raw: m[2], line, names: (m[1] || '').trim() });
     else if ((m = ln.match(reExportFrom))) { imports.push({ raw: m[1], line, reexport: true }); }
+    else if ((m = ln.match(reRequireAssign))) imports.push({ raw: m[2], line, names: m[1].trim() });
     else if ((m = ln.match(reRequire))) imports.push({ raw: m[1], line });
     else if ((m = ln.match(reDynImport))) imports.push({ raw: m[1], line });
     if ((m = ln.match(reExportDecl))) exports.push(m[1]);
@@ -136,6 +139,18 @@ function parsePy(lines) {
     }
   });
   return { imports, exports };
+}
+
+/** Normalize raw import-name captures ("{ a, b }", "a, b as c", "* as ns") into clean symbol lists. */
+function cleanImportNames(names) {
+  if (!names || typeof names !== 'string') return [];
+  return names
+    .replace(/^\s*type\s+/, '') // import type { X }
+    .replace(/[{}]/g, '')
+    .split(',')
+    .map((s) => s.trim().split(/\s+as\s+/).pop().trim().replace(/^\*\s*/, ''))
+    .filter((s) => /^[A-Za-z_$][\w$]*$/.test(s))
+    .slice(0, 8);
 }
 
 function parseGo(lines) {
@@ -368,7 +383,7 @@ function buildGraph(root, extractedMap) {
       exports, isTest: test, isEntry: entry,
       layer: guessLayer(rel, entry, test),
       imports: imports.map(im => ({
-        raw: im.raw, line: im.line, reexport: !!im.reexport,
+        raw: im.raw, line: im.line, reexport: !!im.reexport, names: im.names,
         resolved: resolveImport(root, rel, im.raw, lang, aliases, im.names),
       })),
       fanIn: 0, fanOut: 0,
@@ -380,7 +395,7 @@ function buildGraph(root, extractedMap) {
     for (const im of m.imports) {
       if (im.resolved && modules.has(im.resolved) && im.resolved !== m.id && !seen.has(im.resolved)) {
         seen.add(im.resolved);
-        edges.push({ from: m.id, to: im.resolved, line: im.line });
+        edges.push({ from: m.id, to: im.resolved, line: im.line, names: cleanImportNames(im.names) });
         m.fanOut++;
         modules.get(im.resolved).fanIn++;
       }
@@ -406,6 +421,7 @@ function buildGraph(root, extractedMap) {
     version: VERSION, root: path.resolve(root), generatedAt: new Date().toISOString(),
     audience, businessLens,
     modules: [...modules.values()], edges, cycles,
+    intel: buildIntel(root, [...modules.values()], edges),
   };
 }
 

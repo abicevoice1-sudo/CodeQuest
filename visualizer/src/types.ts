@@ -22,6 +22,67 @@ export interface GraphEdge {
   from: string;
   to: string;
   line?: number;
+  names?: string[];
+}
+
+/* Repo intelligence (graph.intel) — deterministic repo briefing. */
+export interface IntelRunStep {
+  title: string;
+  command: string;
+  optional?: boolean;
+}
+export interface IntelRunbook {
+  language: string;
+  packageManager: string | null;
+  scripts: string[];
+  steps: IntelRunStep[];
+  port: number | null;
+  quickstart: { heading: string; lines: string[] } | null;
+  hasDocker: boolean;
+}
+export interface IntelEngine {
+  engine: string;
+  kind: string;
+  via: string[];
+}
+export interface IntelDatabase {
+  engines: IntelEngine[];
+  envVars: { name: string; file: string }[];
+  prismaSchema: string | null;
+}
+export interface IntelColumn {
+  name: string;
+  type: string;
+}
+export interface IntelTable {
+  name: string;
+  model?: string;
+  source: string;
+  columns: IntelColumn[];
+  orm: string;
+}
+export interface IntelFlowStep {
+  file: string;
+  depth: number;
+  via: string | null;
+}
+export interface IntelPipelineLink {
+  from: string;
+  to: string;
+  count: number;
+}
+export interface IntelFlow {
+  primaryEntry: string;
+  entryCount: number;
+  entries: string[];
+  steps: IntelFlowStep[];
+  pipeline: IntelPipelineLink[];
+}
+export interface RepoIntel {
+  runbook: IntelRunbook;
+  database: IntelDatabase;
+  schema: { tables: IntelTable[] };
+  flow: IntelFlow | null;
 }
 
 export interface CodeQuestGraph {
@@ -33,6 +94,7 @@ export interface CodeQuestGraph {
   modules: GraphModule[];
   edges: GraphEdge[];
   cycles?: string[][];
+  intel?: RepoIntel;
 }
 
 export type Risk = 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW';

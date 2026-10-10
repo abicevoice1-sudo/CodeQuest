@@ -24,8 +24,9 @@ import { CommandPalette, recordRecent, type PaletteCommand } from './components/
 import { FileTree } from './components/FileTree';
 import { FileDetail } from './components/FileDetail';
 import { SettingsModal } from './components/SettingsModal';
+import RepoGuide from './components/RepoGuide';
 import { parseVoiceCommand, resolveTarget, speak, startListening, voiceSupported } from './lib/voice';
-import { narrateFile, type Narration, type Proficiency } from './lib/narrate';
+import { narrateFile, migrateProficiency, PROFICIENCY_LABELS, PROFICIENCY_ORDER, type Narration, type Proficiency } from './lib/narrate';
 
 /* ------------------------------------------------------------------ */
 /* Custom node                                                         */
@@ -123,6 +124,7 @@ export default function App() {
   const [counts, setCounts] = useState({ shown: 0, hidden: 0 });
   const [tab, setTab] = useState<'info' | 'explain'>('info');
   const [showSettings, setShowSettings] = useState(false);
+  const [showGuide, setShowGuide] = useState(false);
   const [listening, setListening] = useState(false);
   const [voiceMsg, setVoiceMsg] = useState('');
   const [tip, setTip] = useState('');
@@ -130,10 +132,9 @@ export default function App() {
   const [showWelcome, setShowWelcome] = useState(false);
   const [proficiency, setProficiency] = useState<Proficiency>(() => {
     try {
-      const p = localStorage.getItem('codequest.proficiency');
-      return p === 'beginner' || p === 'expert' ? p : 'developer';
+      return migrateProficiency(localStorage.getItem('codequest.proficiency'));
     } catch {
-      return 'developer';
+      return 'junior';
     }
   });
 
@@ -586,11 +587,11 @@ export default function App() {
           className="prof-select"
           value={proficiency}
           onChange={(e) => pickProf(e.target.value as Proficiency)}
-          title="Your technical level — explanations adapt to it"
+          title="Your level — explanations adapt to it"
         >
-          <option value="beginner">Not technical</option>
-          <option value="developer">Developer</option>
-          <option value="expert">Expert</option>
+          {PROFICIENCY_ORDER.map((p) => (
+            <option key={p} value={p}>{PROFICIENCY_LABELS[p]}</option>
+          ))}
         </select>
         {!serverMode && (
           <button className="ghost small" onClick={() => fileInput.current?.click()}>Load another</button>
@@ -605,6 +606,7 @@ export default function App() {
           </button>
         )}
         <button className="ghost small" onClick={() => setShowSettings(true)} title="AI settings">⚙</button>
+        <button className="ghost small" onClick={() => setShowGuide(true)} title="App guide: how to run it, how it flows, its database">📖 Guide</button>
         <input
           ref={fileInput}
           type="file"
@@ -843,14 +845,20 @@ export default function App() {
             </p>
             <p className="prof-q">How technical are you? <span>Explanations adapt to your level.</span></p>
             <div className="prof-cards">
+              <button onClick={() => pickProf('non-technical')}>
+                <b>Non-technical</b><span>Business view — why it matters</span>
+              </button>
               <button onClick={() => pickProf('beginner')}>
-                <b>Not technical</b><span>Plain language, no jargon</span>
+                <b>Beginner</b><span>Plain language, no jargon</span>
               </button>
-              <button onClick={() => pickProf('developer')}>
-                <b>Developer</b><span>Standard terms, full detail</span>
+              <button onClick={() => pickProf('junior')}>
+                <b>Junior Developer</b><span>Guided, terms explained</span>
               </button>
-              <button onClick={() => pickProf('expert')}>
-                <b>Expert</b><span>Terse and technical</span>
+              <button onClick={() => pickProf('senior')}>
+                <b>Senior Developer</b><span>Dense, mechanism-first</span>
+              </button>
+              <button onClick={() => pickProf('lead')}>
+                <b>Lead Developer</b><span>Architecture and trade-offs</span>
               </button>
             </div>
             <button className="ghost prof-skip" onClick={() => pickProf(proficiency)}>
@@ -861,6 +869,14 @@ export default function App() {
       )}
       {voiceMsg && <div className="toast voice">{voiceMsg}</div>}
       {showSettings && <SettingsModal onClose={() => setShowSettings(false)} />}
+      {showGuide && graph && (
+        <RepoGuide
+          graph={graph}
+          prof={proficiency}
+          onClose={() => setShowGuide(false)}
+          onOpenFile={(id) => { setShowGuide(false); selectFile(id); }}
+        />
+      )}
     </div>
   );
 }
