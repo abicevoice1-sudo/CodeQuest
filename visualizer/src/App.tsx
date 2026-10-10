@@ -240,10 +240,10 @@ export default function App() {
           <div className="drop-logo">⬢</div>
           <h1>CodeQuest Visualizer</h1>
           <p>
-            Drop your <code>.codequest/graph.json</code> here — or
+            In your repo, run <code>npx codequest-ai start</code> —<br />
+            this page opens with your graph already loaded.
           </p>
           <div className="drop-actions">
-            <button onClick={() => fileInput.current?.click()}>Choose file</button>
             <button
               className="ghost"
               onClick={() =>
@@ -254,6 +254,9 @@ export default function App() {
               }
             >
               Load sample
+            </button>
+            <button className="ghost" onClick={() => fileInput.current?.click()}>
+              Open a graph.json file
             </button>
           </div>
           {error && <div className="drop-error">{error}</div>}
