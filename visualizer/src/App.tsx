@@ -18,11 +18,11 @@ import './index.css';
 import { layoutGraph, blastRadius, type CQNodeData } from './layout';
 import { RISK_COLORS, LAYER_COLORS, shortName, type CodeQuestGraph, type Risk } from './types';
 import { useFileCode } from './components/CodePanel';
+import { CommandPalette, recordRecent } from './components/CommandPalette';
 import { FileTree } from './components/FileTree';
 import { FileDetail } from './components/FileDetail';
 import { SettingsModal } from './components/SettingsModal';
 import { parseVoiceCommand, resolveTarget, speak, startListening, voiceSupported } from './lib/voice';
-import { fuzzySearch } from './lib/search';
 import { narrateFile, type Narration } from './lib/narrate';
 
 /* ------------------------------------------------------------------ */
@@ -82,7 +82,8 @@ export default function App() {
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [blast, setBlast] = useState<Map<string, number> | null>(null);
-  const [query, setQuery] = useState('');
+  const [paletteOpen, setPaletteOpen] = useState(false);
+  const [focusLine, setFocusLine] = useState<number | undefined>(undefined);
   const [hideTests, setHideTests] = useState(false);
   const [hideAssets, setHideAssets] = useState(false);
   const [layers, setLayers] = useState<Set<string>>(new Set());
@@ -94,8 +95,6 @@ export default function App() {
   const [showSettings, setShowSettings] = useState(false);
   const [listening, setListening] = useState(false);
   const [voiceMsg, setVoiceMsg] = useState('');
-  const [searchFocus, setSearchFocus] = useState(false);
-  const [searchIdx, setSearchIdx] = useState(0);
   const [tip, setTip] = useState('');
   const [narration, setNarration] = useState<Narration | null>(null);
   const [tour, setTour] = useState<{ stops: string[]; idx: number } | null>(null);
@@ -192,7 +191,9 @@ export default function App() {
   const { code: fileCode, loadError: fileLoadError } = useFileCode(selectedId);
 
   // Select a file: opens the split detail view (info | code).
-  const selectFile = useCallback((id: string) => {
+  const selectFile = useCallback((id: string, line?: number) => {
+    recordRecent(id);
+    setFocusLine(line);
     setBlast(null);
     setSelectedId(id);
   }, []);
@@ -243,21 +244,17 @@ export default function App() {
     [graph],
   );
 
-  const searchResults = useMemo(
-    () => (graph && query.trim() ? fuzzySearch(query, graph.modules.map((m) => m.id)) : []),
-    [graph, query],
-  );
-
-  const onSearchKey = (e: React.KeyboardEvent) => {
-    if (e.key === 'ArrowDown') { e.preventDefault(); setSearchIdx((i) => Math.min(i + 1, searchResults.length - 1)); }
-    else if (e.key === 'ArrowUp') { e.preventDefault(); setSearchIdx((i) => Math.max(i - 1, 0)); }
-    else if (e.key === 'Enter') {
-      const hit = searchResults[searchIdx] || searchResults[0];
-      if (hit) { selectFile(hit.id); setSearchFocus(false); }
-    } else if (e.key === 'Escape') { setSearchFocus(false); }
-  };
-
-  useEffect(() => { setSearchIdx(0); }, [query]);
+  // ⌘K / Ctrl+K opens the command palette anywhere.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        setPaletteOpen((o) => !o);
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
 
   /* ---------------- voice control ---------------- */
   const handleVoice = useCallback(
@@ -537,32 +534,9 @@ export default function App() {
           <span className={cycles.length ? 'warn' : ''}><b>{cycles.length}</b> cycles</span>
           {graph.engine && <span className="badge">{graph.engine}</span>}
         </div>
-        <div className="search">
-          <input
-            value={query}
-            placeholder="Search files…"
-            onChange={(e) => { setQuery(e.target.value); setSearchFocus(true); }}
-            onKeyDown={onSearchKey}
-            onFocus={() => setSearchFocus(true)}
-            onBlur={() => setTimeout(() => setSearchFocus(false), 150)}
-          />
-          {searchFocus && searchResults.length > 0 && (
-            <div className="search-results">
-              {searchResults.map((h, i) => (
-                <button
-                  key={h.id}
-                  className={i === searchIdx ? 'on' : ''}
-                  onMouseDown={(e) => { e.preventDefault(); selectFile(h.id); setSearchFocus(false); }}
-                  onMouseEnter={() => setSearchIdx(i)}
-                  title={h.id}
-                >
-                  {shortName(h.id)}
-                  <span className="sr-path">{h.id}</span>
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
+        <button className="palette-trigger" onClick={() => setPaletteOpen(true)} title="Search files, symbols, code">
+          <span>🔍</span><span className="pt-text">Search…</span><kbd>⌘K</kbd>
+        </button>
         {!serverMode && (
           <button className="ghost small" onClick={() => fileInput.current?.click()}>Load another</button>
         )}
@@ -660,6 +634,7 @@ export default function App() {
             upstream={upstream}
             code={fileCode}
             loadError={fileLoadError}
+            focusLine={focusLine}
             explainCtx={explainCtx}
             onNeedSettings={() => setShowSettings(true)}
           />
@@ -734,6 +709,14 @@ export default function App() {
       </div>
       {error && <div className="toast">{error}</div>}
       {tip && <div className="toast tip">{tip}</div>}
+      {graph && (
+        <CommandPalette
+          graph={graph}
+          open={paletteOpen}
+          onClose={() => setPaletteOpen(false)}
+          onSelect={(id, line) => selectFile(id, line)}
+        />
+      )}
       {tour && (
         <div className="tour-bar">
           <span className="tour-progress">Tour {tour.idx + 1} of {tour.stops.length}</span>

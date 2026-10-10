@@ -1,11 +1,23 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { highlightCode } from '../lib/highlight';
 
-export function CodePanel({ path, code, loadError }: { path: string; code: string | null; loadError: string }) {
+export function CodePanel({ path, code, loadError, focusLine }: { path: string; code: string | null; loadError: string; focusLine?: number }) {
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (focusLine && ref.current && code) {
+      const el = ref.current.querySelector(`.cl:nth-child(${focusLine})`);
+      if (el) {
+        el.scrollIntoView({ block: 'center' });
+        el.classList.add('flash');
+        const t = setTimeout(() => el.classList.remove('flash'), 1800);
+        return () => clearTimeout(t);
+      }
+    }
+  }, [path, code, focusLine]);
   if (loadError) return <div className="code-hint">{loadError}</div>;
   if (code === null) return <div className="code-hint">Loading {path}…</div>;
   return (
-    <div className="codeview" dangerouslySetInnerHTML={{ __html: highlightCode(code, path) }} />
+    <div ref={ref} className="codeview" dangerouslySetInnerHTML={{ __html: highlightCode(code, path) }} />
   );
 }
 

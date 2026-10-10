@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.9.0 — 2026-10-10
+- The file view is redesigned: breadcrumb header with badges, a "What it does / If you change it" summary card, stat cards, a proper blast-radius button, clean import lists, and a code pane with its own header (filename, language, line count, copy button) that fills the column. On phones the file view switches to About/Code tabs.
+- New **command palette** (⌘K / Ctrl+K): fuzzy file search, symbol (export) search, and full code-content search with line snippets that jump straight to the matching line — plus recent files and full keyboard navigation.
+
 ## 1.8.0 — 2026-10-10
 - The visualizer is now a VS Code-style IDE: a file explorer tree on the left (folders, language icons, risk dots, entry markers, filter), and clicking any file opens a split view — file info on the left, code on the right. Graph filters moved into a collapsible section. Layout stacks cleanly on phones.
 
