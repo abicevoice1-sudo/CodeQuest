@@ -1,5 +1,8 @@
 # Changelog
 
+## 1.8.0 — 2026-10-10
+- The visualizer is now a VS Code-style IDE: a file explorer tree on the left (folders, language icons, risk dots, entry markers, filter), and clicking any file opens a split view — file info on the left, code on the right. Graph filters moved into a collapsible section. Layout stacks cleanly on phones.
+
 ## 1.7.0 — 2026-10-10
 - The app now explains itself: a welcome overlay ("This is a map of your codebase") and a **guided tour** — press play and it flies you through the 5 most important files, speaking each one's purpose and impact.
 - The side panel now answers "What am I looking at?" in plain sentences: file counts, the most connected file, circular imports, critical risks.

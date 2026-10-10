@@ -17,8 +17,9 @@ import '@xyflow/react/dist/style.css';
 import './index.css';
 import { layoutGraph, blastRadius, type CQNodeData } from './layout';
 import { RISK_COLORS, LAYER_COLORS, shortName, type CodeQuestGraph, type Risk } from './types';
-import { CodePanel, useFileCode } from './components/CodePanel';
-import { ExplainPanel } from './components/ExplainPanel';
+import { useFileCode } from './components/CodePanel';
+import { FileTree } from './components/FileTree';
+import { FileDetail } from './components/FileDetail';
 import { SettingsModal } from './components/SettingsModal';
 import { parseVoiceCommand, resolveTarget, speak, startListening, voiceSupported } from './lib/voice';
 import { fuzzySearch } from './lib/search';
@@ -89,7 +90,7 @@ export default function App() {
   const [error, setError] = useState('');
   const [dragOver, setDragOver] = useState(false);
   const [counts, setCounts] = useState({ shown: 0, hidden: 0 });
-  const [tab, setTab] = useState<'info' | 'code' | 'explain'>('info');
+  const [tab, setTab] = useState<'info' | 'explain'>('info');
   const [showSettings, setShowSettings] = useState(false);
   const [listening, setListening] = useState(false);
   const [voiceMsg, setVoiceMsg] = useState('');
@@ -190,6 +191,12 @@ export default function App() {
 
   const { code: fileCode, loadError: fileLoadError } = useFileCode(selectedId);
 
+  // Select a file: opens the split detail view (info | code).
+  const selectFile = useCallback((id: string) => {
+    setBlast(null);
+    setSelectedId(id);
+  }, []);
+
   // Reset to the info tab whenever a different module is selected.
   useEffect(() => {
     setTab('info');
@@ -205,8 +212,8 @@ export default function App() {
     speak(`${n.purpose} ${n.impact}`);
   }, [graph]);
 
+  // Camera-only: fly to a node without opening the detail view.
   const focusNode = useCallback((id: string) => {
-    setSelectedId(id);
     if (flowRef.current) flowRef.current.fitView({ nodes: [{ id }], duration: 400, padding: 0.4 });
   }, []);
 
@@ -231,7 +238,7 @@ export default function App() {
     (id: string) => {
       if (!graph) return;
       setBlast(blastRadius(graph, id));
-      setSelectedId(id);
+      setSelectedId(null); // back to the graph so the blast is visible
     },
     [graph],
   );
@@ -246,7 +253,7 @@ export default function App() {
     else if (e.key === 'ArrowUp') { e.preventDefault(); setSearchIdx((i) => Math.max(i - 1, 0)); }
     else if (e.key === 'Enter') {
       const hit = searchResults[searchIdx] || searchResults[0];
-      if (hit) { focusNode(hit.id); setSearchFocus(false); }
+      if (hit) { selectFile(hit.id); setSearchFocus(false); }
     } else if (e.key === 'Escape') { setSearchFocus(false); }
   };
 
@@ -262,7 +269,7 @@ export default function App() {
         const q = cmd.query.toLowerCase();
         const hits = ids.filter((id) => id.toLowerCase().includes(q));
         if (hits.length) {
-          focusNode(hits[0]);
+          selectFile(hits[0]);
           const msg = hits.length === 1 ? `Found ${hits[0]}` : `Found ${hits.length} files, showing ${hits[0]}`;
           setVoiceMsg(msg);
           speak(msg);
@@ -285,6 +292,7 @@ export default function App() {
           speak(`Showing blast radius for ${shortName(id)}. Check the panel.`);
         } else {
           // Voice explain = spoken purpose + impact, no API key needed.
+          selectFile(id);
           if (graph) {
             const n = narrateFile(id, graph);
             setNarration(n);
@@ -304,7 +312,7 @@ export default function App() {
         speak(`I didn't catch that. ${msg}`);
       }
     },
-    [graph, selectedId, focusNode],
+    [graph, selectedId, focusNode, selectFile],
   );
 
   const toggleListen = useCallback(() => {
@@ -336,6 +344,7 @@ export default function App() {
     if (!stops.length) return;
     setShowWelcome(false);
     try { localStorage.setItem('codequest.welcomed', '1'); } catch { /* noop */ }
+    setSelectedId(null); // tour runs on the graph
     setTour({ stops, idx: 0 });
   }, [graph]);
 
@@ -433,8 +442,8 @@ export default function App() {
   }, [blast, graph]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const onNodeClick = useCallback((_: unknown, node: Node<CQNodeData>) => {
-    setSelectedId(node.id);
-  }, []);
+    selectFile(node.id);
+  }, [selectFile]);
 
 
   const toggleIn = (set: Set<string>, v: string, apply: (s: Set<string>) => void) => {
@@ -543,7 +552,7 @@ export default function App() {
                 <button
                   key={h.id}
                   className={i === searchIdx ? 'on' : ''}
-                  onMouseDown={(e) => { e.preventDefault(); focusNode(h.id); setSearchFocus(false); }}
+                  onMouseDown={(e) => { e.preventDefault(); selectFile(h.id); setSearchFocus(false); }}
                   onMouseEnter={() => setSearchIdx(i)}
                   title={h.id}
                 >
@@ -583,56 +592,78 @@ export default function App() {
       </header>
 
       <div className="main">
-        <aside className="panel left">
-          <section>
-            <h3>Layers</h3>
-            <div className="chips">
-              {allLayers.map((l) => (
-                <button
-                  key={l}
-                  className={`chip${layers.has(l) ? ' on' : ''}`}
-                  onClick={() => toggleIn(layers, l, setLayers)}
-                >
-                  <span className="dot" style={{ background: LAYER_COLORS[l] || '#94a3b8' }} />
-                  {l}
-                </button>
-              ))}
-            </div>
-          </section>
-          <section>
-            <h3>Risk</h3>
-            <div className="chips">
-              {(Object.keys(RISK_COLORS) as Risk[]).map((r) => (
-                <button
-                  key={r}
-                  className={`chip${risks.has(r) ? ' on' : ''}`}
-                  onClick={() => toggleIn(risks, r, setRisks)}
-                >
-                  <span className="dot" style={{ background: RISK_COLORS[r] }} />
-                  {r}
-                </button>
-              ))}
-            </div>
-          </section>
-          <section>
-            <h3>Show</h3>
-            <label className="toggle">
-              <input type="checkbox" checked={!hideTests} onChange={() => setHideTests(!hideTests)} />
-              Test files
-            </label>
-            <label className="toggle">
-              <input type="checkbox" checked={!hideAssets} onChange={() => setHideAssets(!hideAssets)} />
-              Configs & assets
-            </label>
-          </section>
-          <section className="legend">
-            <h3>Legend</h3>
-            <div><span className="cq-entry-dot" /> entry point</div>
-            <div><span className="edge-sample" /> import edge</div>
-            <div className="counts">{counts.shown} shown · {counts.hidden} hidden</div>
-          </section>
+        <aside className="panel left explorer">
+          <FileTree graph={graph} selectedId={selectedId} onSelect={selectFile} />
+          <details className="filters">
+            <summary>Graph filters</summary>
+            <section>
+              <h3>Layers</h3>
+              <div className="chips">
+                {allLayers.map((l) => (
+                  <button
+                    key={l}
+                    className={`chip${layers.has(l) ? ' on' : ''}`}
+                    onClick={() => toggleIn(layers, l, setLayers)}
+                  >
+                    <span className="dot" style={{ background: LAYER_COLORS[l] || '#94a3b8' }} />
+                    {l}
+                  </button>
+                ))}
+              </div>
+            </section>
+            <section>
+              <h3>Risk</h3>
+              <div className="chips">
+                {(Object.keys(RISK_COLORS) as Risk[]).map((r) => (
+                  <button
+                    key={r}
+                    className={`chip${risks.has(r) ? ' on' : ''}`}
+                    onClick={() => toggleIn(risks, r, setRisks)}
+                  >
+                    <span className="dot" style={{ background: RISK_COLORS[r] }} />
+                    {r}
+                  </button>
+                ))}
+              </div>
+            </section>
+            <section>
+              <h3>Show</h3>
+              <label className="toggle">
+                <input type="checkbox" checked={!hideTests} onChange={() => setHideTests(!hideTests)} />
+                Test files
+              </label>
+              <label className="toggle">
+                <input type="checkbox" checked={!hideAssets} onChange={() => setHideAssets(!hideAssets)} />
+                Configs & assets
+              </label>
+            </section>
+            <section className="legend">
+              <h3>Legend</h3>
+              <div><span className="cq-entry-dot" /> entry point</div>
+              <div><span className="edge-sample" /> import edge</div>
+              <div className="counts">{counts.shown} shown · {counts.hidden} hidden</div>
+            </section>
+          </details>
         </aside>
 
+        {selected && selectedId ? (
+          <FileDetail
+            module={selected}
+            narration={narration}
+            detailTab={tab}
+            setDetailTab={setTab}
+            onBack={() => setSelectedId(null)}
+            onListen={() => listenToFile(selected.id)}
+            onBlast={() => startBlast(selected.id)}
+            onSelectFile={selectFile}
+            downstream={downstream}
+            upstream={upstream}
+            code={fileCode}
+            loadError={fileLoadError}
+            explainCtx={explainCtx}
+            onNeedSettings={() => setShowSettings(true)}
+          />
+        ) : (
         <div className="canvas" onDrop={onDrop} onDragOver={(e) => e.preventDefault()}>
           <ReactFlow
             nodes={nodes}
@@ -663,6 +694,7 @@ export default function App() {
             </div>
           )}
         </div>
+        )}
 
         <aside className="panel right">
           {blast ? (
@@ -671,107 +703,12 @@ export default function App() {
               <div className="blast-source">{shortName(selectedId || '')}</div>
               <div className="blast-list">
                 {blastList.map(([id, d]) => (
-                  <button key={id} className="blast-row" onClick={() => setSelectedId(id)}>
+                  <button key={id} className="blast-row" onClick={() => selectFile(id)}>
                     <span className="degree" style={{ background: DEGREE_COLORS[Math.min(d, 4)] }}>{d}</span>
                     <span className="blast-path" title={id}>{shortName(id)}</span>
                   </button>
                 ))}
               </div>
-            </section>
-          ) : selected ? (
-            <section className="detail">
-              <h3 title={selected.path}>{shortName(selected.path)}</h3>
-              <div className="detail-path">{selected.path}</div>
-              <div className="detail-tabs">
-                {(['info', 'code', 'explain'] as const).map((t) => (
-                  <button key={t} className={tab === t ? 'on' : ''} onClick={() => setTab(t)}>
-                    {t === 'info' ? 'Info' : t === 'code' ? '</> Code' : '✨ Explain'}
-                  </button>
-                ))}
-                <button
-                  className="tab-speak"
-                  title="Listen: hear this file's purpose and impact"
-                  onClick={() => selectedId && listenToFile(selectedId)}
-                >
-                  🔊
-                </button>
-              </div>
-              {narration && tab === 'info' && (
-                <div className="narration">
-                  <p><b>Purpose.</b> {narration.purpose}</p>
-                  <p><b>Impact.</b> {narration.impact}</p>
-                </div>
-              )}
-              {tab === 'code' ? (
-                <CodePanel path={selected.id} code={fileCode} loadError={fileLoadError} />
-              ) : tab === 'explain' ? (
-                explainCtx ? (
-                  <ExplainPanel ctx={explainCtx} autoRunKey={0} onNeedSettings={() => setShowSettings(true)} />
-                ) : (
-                  <div className="code-hint">Select a file first.</div>
-                )
-              ) : (
-              <>
-              <div className="detail-meta">
-                <span className="risk-badge" style={{ background: RISK_COLORS[selected.risk || 'LOW'] }}>
-                  {selected.risk || 'LOW'}
-                </span>
-                <span className="layer-badge">{selected.layer}</span>
-                {selected.isEntry && <span className="entry-badge">ENTRY</span>}
-              </div>
-              <div className="detail-stats">
-                <div><b>{selected.lines}</b><span>lines</span></div>
-                <div><b>{selected.fanIn}</b><span>dependents</span></div>
-                <div><b>{selected.fanOut}</b><span>dependencies</span></div>
-              </div>
-              <button className="blast-btn" onClick={() => startBlast(selected.id)}>
-                ◉ Show blast radius
-              </button>
-              {(window as unknown as { acquireVsCodeApi?: () => { postMessage: (m: unknown) => void } }).acquireVsCodeApi && (
-                <button
-                  className="ghost small"
-                  style={{ width: '100%', marginBottom: 16 }}
-                  onClick={() =>
-                    (window as unknown as { acquireVsCodeApi: () => { postMessage: (m: unknown) => void } })
-                      .acquireVsCodeApi()
-                      .postMessage({ command: 'openFile', path: selected.path })
-                  }
-                >
-                  Open in editor ⤴
-                </button>
-              )}
-              {selected.exports.length > 0 && (
-                <>
-                  <h4>Exports ({selected.exports.length})</h4>
-                  <div className="tags">{selected.exports.slice(0, 24).map((e) => <code key={e}>{e}</code>)}</div>
-                </>
-              )}
-              {downstream.length > 0 && (
-                <>
-                  <h4>Imports ({downstream.length})</h4>
-                  <div className="edge-list">
-                    {downstream.map((e) => (
-                      <button key={e.from + e.to} onClick={() => setSelectedId(e.to)} title={e.to}>
-                        {shortName(e.to)}{e.line ? <span className="line">:{e.line}</span> : null}
-                      </button>
-                    ))}
-                  </div>
-                </>
-              )}
-              {upstream.length > 0 && (
-                <>
-                  <h4>Imported by ({upstream.length})</h4>
-                  <div className="edge-list">
-                    {upstream.map((e) => (
-                      <button key={e.to + e.from} onClick={() => setSelectedId(e.from)} title={e.from}>
-                        {shortName(e.from)}
-                      </button>
-                    ))}
-                  </div>
-                </>
-              )}
-              </>
-              )}
             </section>
           ) : (
             <section className="hint">

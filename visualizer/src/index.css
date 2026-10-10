@@ -400,3 +400,79 @@ button.small { padding: 7px 14px; font-size: 13px; border-radius: 8px; }
 }
 .insight { font-size: 13px; line-height: 1.65; color: #d4d4d8; margin: 8px 0; }
 .hint-sub { color: #63636b; font-size: 12px; margin-top: 10px; }
+
+/* ---------------- file explorer (VS Code style) ---------------- */
+.panel.left.explorer { display: flex; flex-direction: column; padding: 0; overflow: hidden; }
+.filetree { display: flex; flex-direction: column; flex: 1; min-height: 0; }
+.ft-search { padding: 10px 10px 6px; }
+.ft-search input {
+  width: 100%; padding: 7px 10px; border-radius: 7px; font-size: 12.5px;
+  background: #141417; border: 1px solid #2a2a30; color: #e4e4e7;
+}
+.ft-search input:focus { outline: none; border-color: #38bdf8; }
+.ft-list { flex: 1; overflow-y: auto; padding: 2px 4px 10px; }
+.ft-empty { color: #63636b; font-size: 12.5px; padding: 12px; text-align: center; }
+.ft-row {
+  display: flex; align-items: center; gap: 6px; width: 100%;
+  background: none; border: none; color: #d4d4d8; font-size: 12.8px;
+  padding-top: 5px; padding-bottom: 5px; padding-right: 8px; border-radius: 6px;
+  cursor: pointer; text-align: left; white-space: nowrap;
+}
+.ft-row:hover { background: #1b1b20; }
+.ft-file.sel { background: #1e3a52; color: #fff; }
+.ft-caret { width: 12px; color: #71717a; font-size: 10px; flex-shrink: 0; }
+.ft-icon { flex-shrink: 0; }
+.ft-name { overflow: hidden; text-overflow: ellipsis; }
+.ft-count {
+  margin-left: auto; font-size: 10.5px; color: #63636b; background: #1b1b20;
+  border-radius: 8px; padding: 1px 7px; flex-shrink: 0;
+}
+.ft-entry { font-size: 11px; flex-shrink: 0; }
+.ft-risk { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; margin-left: auto; }
+.ft-foot { padding: 8px 12px; font-size: 11px; color: #63636b; border-top: 1px solid #1e1e24; }
+details.filters { border-top: 1px solid #1e1e24; max-height: 45%; overflow-y: auto; }
+details.filters summary {
+  cursor: pointer; padding: 10px 12px; font-size: 12.5px; font-weight: 600; color: #a1a1aa;
+  list-style: none;
+}
+details.filters summary::-webkit-details-marker { display: none; }
+details.filters summary::before { content: '▸ '; color: #71717a; }
+details.filters[open] summary::before { content: '▾ '; }
+details.filters section { padding: 0 12px 12px; }
+
+/* ---------------- file detail split view ---------------- */
+.file-detail { flex: 1; display: flex; flex-direction: column; min-width: 0; background: #0a0a0c; }
+.fd-header {
+  display: flex; align-items: center; gap: 10px; padding: 10px 14px;
+  border-bottom: 1px solid #1e1e24;
+}
+.fd-path {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13px; color: #e4e4e7;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1;
+}
+.fd-split { flex: 1; display: flex; min-height: 0; }
+.fd-info {
+  width: 340px; min-width: 280px; max-width: 420px; overflow-y: auto;
+  border-right: 1px solid #1e1e24; padding: 14px;
+}
+.fd-code { flex: 1; min-width: 0; overflow: hidden; display: flex; flex-direction: column; }
+.fd-code .code-panel { flex: 1; min-height: 0; }
+.fd-tabs { display: flex; gap: 6px; margin-bottom: 12px; }
+.fd-tabs button {
+  padding: 7px 14px; border-radius: 8px; font-size: 13px; font-weight: 600;
+  background: #141417; border: 1px solid #2a2a30; color: #a1a1aa; cursor: pointer;
+}
+.fd-tabs button.on { background: #1e3a52; border-color: #38bdf8; color: #fff; }
+
+/* ---------------- small screens: stack the IDE ---------------- */
+@media (max-width: 900px) {
+  .main { flex-direction: column; overflow-y: auto; }
+  .panel.left.explorer { max-height: 240px; flex-shrink: 0; border-bottom: 1px solid #1e1e24; }
+  .panel.right { display: none; }
+  .canvas { min-height: 60vh; }
+  .file-detail { min-height: 0; }
+  .fd-split { flex-direction: column; overflow-y: auto; }
+  .fd-info { width: auto; min-width: 0; max-width: none; border-right: none; border-bottom: 1px solid #1e1e24; }
+  .fd-code { min-height: 50vh; }
+  .tour-bar { bottom: 10px; max-width: 94vw; flex-wrap: wrap; justify-content: center; }
+}
