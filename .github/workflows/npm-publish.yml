@@ -1,12 +1,12 @@
 name: Publish to npm
 
-# Auto-publishes aperio whenever the version in aperio/package.json
+# Auto-publishes codequest-ai whenever the version in codequest/package.json
 # changes on main. Requires one repo secret: NPM_TOKEN (an npm Automation token).
 on:
   push:
     branches: [main]
     paths:
-      - 'aperio/package.json'
+      - 'codequest/package.json'
 
 jobs:
   publish:
@@ -15,7 +15,7 @@ jobs:
       contents: read
     defaults:
       run:
-        working-directory: aperio
+        working-directory: codequest
     steps:
       - uses: actions/checkout@v4
 
@@ -29,7 +29,7 @@ jobs:
         run: |
           VER=$(node -p "require('./package.json').version")
           echo "version=$VER" >> "$GITHUB_OUTPUT"
-          if npm view aperio versions --json 2>/dev/null | grep -q "\"$VER\""; then
+          if npm view codequest-ai versions --json 2>/dev/null | grep -q "\"$VER\""; then
             echo "published=true" >> "$GITHUB_OUTPUT"
             echo "v$VER already on npm — skipping"
           else

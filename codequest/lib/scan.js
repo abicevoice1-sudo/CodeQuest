@@ -4,9 +4,9 @@ const fs = require('fs');
 const path = require('path');
 const { execFileSync } = require('child_process');
 const { buildIntel } = require('./intel');
-const VERSION = '1.0.0';
+const VERSION = '1.14.3';
 const SKIP_DIRS = new Set(['node_modules', '.git', 'dist', 'build', 'coverage', '.next',
-  'vendor', '__pycache__', '.venv', 'venv', 'target', '.aperio', '.codequest', '.idea', '.vscode']);
+  'vendor', '__pycache__', '.venv', 'venv', 'target', '.codequest', '.idea', '.vscode']);
 const EXT_LANG = {
   '.js': 'javascript', '.jsx': 'javascript', '.mjs': 'javascript', '.cjs': 'javascript',
   '.ts': 'typescript', '.tsx': 'typescript',
@@ -410,11 +410,10 @@ function buildGraph(root, extractedMap) {
     m.risk = m.isTest ? 'LOW' : risk;
   }
   const cycles = findCycles([...modules.keys()], edges);
-  // Audience settings (see `aperio init`): prompts adapt explanations to it.
+  // Audience settings (see `codequest init`): prompts adapt explanations to it.
   let audience = 'professional', businessLens = false;
   try {
-    const { cacheDir } = require('./util');
-    const cfg = JSON.parse(fs.readFileSync(path.join(cacheDir(root), 'config.json'), 'utf8'));
+    const cfg = JSON.parse(fs.readFileSync(path.join(root, '.codequest', 'config.json'), 'utf8'));
     if (cfg.audience) audience = cfg.audience;
     if (cfg.businessLens) businessLens = true;
   } catch { /* no config — defaults */ }
@@ -457,8 +456,8 @@ function findCycles(nodeIds, edges) {
 function runTreeSitterExtract(dir) {
   const engine = path.join(__dirname, '..', 'parsers', 'tree-sitter', 'extract.js');
   if (!fs.existsSync(path.join(path.dirname(engine), 'node_modules'))) {
-    console.error('aperio: the tree-sitter engine needs its dependencies:\n' +
-      '  cd aperio/parsers/tree-sitter && npm install   (try --legacy-peer-deps on conflict)');
+    console.error('codequest: the tree-sitter engine needs its dependencies:\n' +
+      '  cd codequest/parsers/tree-sitter && npm install   (try --legacy-peer-deps on conflict)');
     process.exit(2);
   }
   const out = execFileSync(process.execPath, [engine, dir],

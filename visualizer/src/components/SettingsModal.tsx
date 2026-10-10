@@ -31,7 +31,7 @@ export function SettingsModal({
   const scanEnv = async () => {
     setEnvError('');
     setPermAsk(false);
-    if (!serverMode) { setEnvError('Live .env reading needs the local server — run `aperio start`.'); return; }
+    if (!serverMode) { setEnvError('Live .env reading needs the local server — run `codequest start`.'); return; }
     try {
       const r = await fetch('/api/env-scan?kind=ai');
       const j = await r.json();
@@ -109,7 +109,7 @@ export function SettingsModal({
             <div className="guide-perm" onClick={(e) => e.stopPropagation()}>
               <h3>🔑 Read your .env file?</h3>
               <p>
-                Aperio wants to read <code>.env</code> in this repo to find API keys —
+                CodeQuest wants to read <code>.env</code> in this repo to find API keys —
                 using fuzzy matching across every variable name. Only masked previews are
                 ever shown; secrets never leave this machine.
               </p>

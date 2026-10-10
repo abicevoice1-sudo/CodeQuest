@@ -1,7 +1,7 @@
 export type ThemeId = 'dark' | 'light' | 'vscode-dark' | 'monokai' | 'dracula';
 
 export const THEMES: { id: ThemeId; label: string; hint: string }[] = [
-  { id: 'dark', label: 'Dark', hint: 'Aperio default' },
+  { id: 'dark', label: 'Dark', hint: 'CodeQuest default' },
   { id: 'light', label: 'Light', hint: 'Bright and clean' },
   { id: 'vscode-dark', label: 'VS Code Dark+', hint: 'The editor you know' },
   { id: 'monokai', label: 'Monokai', hint: 'Warm classic' },

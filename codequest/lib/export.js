@@ -1,5 +1,5 @@
 'use strict';
-/* `aperio export [dir] -o report.html` — one self-contained HTML file:
+/* `codequest export [dir] -o report.html` — one self-contained HTML file:
    graph + all source code inlined. Double-click it, email it, host it. No server. */
 
 const fs = require('fs');
@@ -88,11 +88,11 @@ function cmdExport(dir, packRoot, outFile, flags) {
     `window.__CODEQUEST_FILES__=${safeJson(files)};</script>`;
   html = html.replace('</head>', `${payload}\n</head>`);
 
-  const dest = outFile || path.join(dir, 'aperio-report.html');
+  const dest = outFile || path.join(dir, 'codequest-report.html');
   fs.writeFileSync(dest, html);
   const kb = Math.round(fs.statSync(dest).size / 1024);
   if (!flags.json) {
-    out(`aperio: exported ${dest} (${kb} KB)`);
+    out(`codequest: exported ${dest} (${kb} KB)`);
     out(`  ${g.modules.length} modules, ${g.edges.length} edges, ${embedded} files embedded (${skipped} skipped)`);
     out(`  open it anywhere — no server needed.`);
   } else {

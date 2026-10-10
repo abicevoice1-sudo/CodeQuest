@@ -1,8 +1,5 @@
 # Changelog
 
-## 1.0.0 — 2026-10-10
-**Aperio is the new CodeQuest.** Same engine, new name — *Aperio* (Latin: to uncover, reveal). `codequest-ai` on npm is deprecated in favor of `aperio`; the `codequest` CLI is now `aperio`; caches moved from `.codequest/` to `.aperio/` (old caches are picked up automatically). New aperture logo, rebranded visualizer, README, and docs. GitHub repo renamed to `abicevoice1-sudo/Aperio`.
-
 ## 1.14.3 — 2026-10-10
 - Business-person polish pass: Architecture tab now speaks in departments (Front Doors, What Customers See, The Work) with fixture/test files hidden and duplicate departments merged; Why-it-matters shows only real business connections with specific, non-repetitive explanations (verb-aware: scanning, exporting, commanding); fixed a crash when opening Architecture.
 

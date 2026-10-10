@@ -5,7 +5,7 @@ const fs = require('fs');
 const path = require('path');
 const http = require('http');
 const { exec } = require('child_process');
-const { out, fail, cacheDir } = require('./util');
+const { out, fail } = require('./util');
 const { buildGraph, runTreeSitterExtract } = require('./scan');
 const { fuzzyMatchEnv } = require('./intel');
 
@@ -39,7 +39,7 @@ function cmdVisualize(dir, packRoot, flags) {
   }
   const g = buildGraph(dir, extracted);
   g.engine = engine;
-  const cq = cacheDir(dir);
+  const cq = path.join(dir, '.codequest');
   fs.mkdirSync(cq, { recursive: true });
   fs.writeFileSync(path.join(cq, 'graph.json'), JSON.stringify(g, null, 2));
 
@@ -263,8 +263,8 @@ function cmdStart(dir, packRoot, asJson, flags) {
   const { copied } = copyPack(dir, packRoot);
   if (!asJson) {
     out(copied.length
-      ? `aperio: copied the pack into this repo (${copied.length} files)`
-      : 'aperio: pack already in this repo');
+      ? `codequest: copied the pack into this repo (${copied.length} files)`
+      : 'codequest: pack already in this repo');
   }
   cmdSetup(dir, packRoot, asJson, flags);
   if (!asJson) out('');

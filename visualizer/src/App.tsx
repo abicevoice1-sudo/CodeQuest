@@ -34,32 +34,6 @@ import { loadTheme, saveTheme, applyTheme, type ThemeId } from './lib/theme';
 /* Custom node                                                         */
 /* ------------------------------------------------------------------ */
 
-function ApertureMark({ size = 22 }: { size?: number }) {
-  // Aperio mark: a camera aperture — the iris that opens to reveal.
-  // Six blades spiral into a hexagonal opening: uncovering the codebase.
-  const blades = [0, 60, 120, 180, 240, 300].map((deg) => {
-    const a = ((deg - 90) * Math.PI) / 180;
-    const b = ((deg - 90 + 48) * Math.PI) / 180;
-    const x1 = 16 + 13.5 * Math.cos(a), y1 = 16 + 13.5 * Math.sin(a);
-    const x2 = 16 + 6.2 * Math.cos(b), y2 = 16 + 6.2 * Math.sin(b);
-    return <line key={deg} x1={x1} y1={y1} x2={x2} y2={y2} strokeWidth={2.6} strokeLinecap="round" />;
-  });
-  return (
-    <svg width={size} height={size} viewBox="0 0 32 32" aria-label="Aperio" role="img">
-      <defs>
-        <linearGradient id="aperio-g" x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0" stopColor="#38bdf8" />
-          <stop offset="1" stopColor="#a78bfa" />
-        </linearGradient>
-      </defs>
-      <g stroke="url(#aperio-g)">
-        <circle cx="16" cy="16" r="13.5" fill="none" strokeWidth={2.4} />
-        {blades}
-      </g>
-    </svg>
-  );
-}
-
 function CQNode({ data, selected }: NodeProps<Node<CQNodeData>>) {
   const color = RISK_COLORS[(data.risk as Risk) || 'LOW'];
   const hot = data.risk === 'CRITICAL' || data.risk === 'HIGH';
@@ -98,7 +72,7 @@ const DEGREE_COLORS = ['#f43f5e', '#fb923c', '#facc15', '#a3e635', '#34d399'];
 async function readGraphFile(file: File): Promise<CodeQuestGraph> {
   const text = await file.text();
   const g = JSON.parse(text);
-  if (!g.modules || !g.edges) throw new Error('not an Aperio graph.json');
+  if (!g.modules || !g.edges) throw new Error('not a CodeQuest graph.json');
   return g;
 }
 
@@ -548,7 +522,7 @@ export default function App() {
       if (f)
         readGraphFile(f)
           .then((g) => loadGraph(g, f.name))
-          .catch(() => setError('That file is not an Aperio graph.json'));
+          .catch(() => setError('That file is not a CodeQuest graph.json'));
     },
     [loadGraph],
   );
@@ -564,10 +538,10 @@ export default function App() {
         onDrop={onDrop}
       >
         <div className="drop-card">
-          <div className="drop-logo"><ApertureMark size={44} /></div>
-          <h1>Aperio</h1>
+          <div className="drop-logo">⬢</div>
+          <h1>CodeQuest Visualizer</h1>
           <p>
-            Uncover any codebase. In your repo, run <code>npx aperio start</code> —<br />
+            In your repo, run <code>npx codequest-ai start</code> —<br />
             this page opens with your graph already loaded.
           </p>
           <div className="drop-actions">
@@ -597,7 +571,7 @@ export default function App() {
               if (f)
                 readGraphFile(f)
                   .then((g) => loadGraph(g, f.name))
-                  .catch(() => setError('That file is not an Aperio graph.json'));
+                  .catch(() => setError('That file is not a CodeQuest graph.json'));
             }}
           />
         </div>
@@ -614,8 +588,8 @@ export default function App() {
     <div className="app">
       <header className="topbar">
         <div className="brand">
-          <span className="brand-mark"><ApertureMark /></span>
-          <span className="brand-name">Aperio</span>
+          <span className="brand-mark">⬢</span>
+          <span className="brand-name">CodeQuest</span>
           <span className="brand-file" title={fileName}>{fileName}</span>
         </div>
         <div className="stats">
@@ -661,7 +635,7 @@ export default function App() {
             if (f)
               readGraphFile(f)
                 .then((g) => loadGraph(g, f.name))
-                .catch(() => setError('That file is not an Aperio graph.json'));
+                .catch(() => setError('That file is not a CodeQuest graph.json'));
           }}
         />
       </header>
@@ -849,7 +823,7 @@ export default function App() {
       {showWelcome && graph && (
         <div className="modal-backdrop">
           <div className="modal welcome">
-            <div className="drop-logo"><ApertureMark size={44} /></div>
+            <div className="drop-logo">⬢</div>
             <h2>This is a map of your codebase.</h2>
             <p className="modal-sub">
               Every box is a file. Lines show which files talk to which.

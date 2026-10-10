@@ -1,7 +1,6 @@
 #!/usr/bin/env node
 /**
- * aperio — uncover any codebase. Deterministic static analyzer.
- * Zero dependencies. Node 18+. Fully offline. Never touches the network.
+ * codequest — deterministic static analyzer for the CodeQuest drop-in.
  * Zero dependencies. Node 18+. Fully offline. Never touches the network.
  * Entry point: parses args and dispatches to lib/ modules.
  */
@@ -9,7 +8,7 @@
 
 const fs = require('fs');
 const path = require('path');
-const { fail, out, cacheDir } = require('../lib/util');
+const { fail, out } = require('../lib/util');
 const { buildGraph, runTreeSitterExtract } = require('../lib/scan');
 const { cmdDiff, cmdHistory, cmdTrends, cmdBlastRadius, cmdStory, repoMapMd, riskTag } = require('../lib/commands');
 const { cmdSetup } = require('../lib/setup');
@@ -45,17 +44,17 @@ function main() {
 
   if (!cmd || cmd === '--help' || cmd === '-h' || cmd === 'help') {
     return out([
-      'aperio — uncover any codebase (offline, zero deps)',
+      'codequest — deterministic static analyzer (offline, zero deps)',
       '',
-      '  scan [dir]               build .aperio/graph.json + repo-map.md',
+      '  scan [dir]               build .codequest/graph.json + repo-map.md',
       '  map [dir]                print the repo map',
       '  modules [dir]            list modules + exports',
       '  blast-radius <file> [dir]',
       '  story <entry-file> [dir]',
       '  diff <old> <new>            architecture drift: old/new are dirs or graph.json paths',
-      '  init [dir]                 write .aperio/config.json (audience + perspective)',
+      '  init [dir]                 write .codequest/config.json (audience + perspective)',
       '  setup [dir]                detect local IDEs/AI assistants and configure each one',
-      '  history [dir]              record a drift snapshot (.aperio/history.jsonl)',
+      '  history [dir]              record a drift snapshot (.codequest/history.jsonl)',
       '  trends [dir]               show drift history over time',
       '  start [dir]                the easy one: copy the pack in, set up your IDE, open the graph',
       '  visualize [dir]            scan + open the interactive graph in your browser',
@@ -71,9 +70,9 @@ function main() {
 
   const dirOf = (i) => path.resolve(args[i] || '.');
   const loadGraph = (dir) => {
-    const p = path.join(cacheDir(dir), 'graph.json');
+    const p = path.join(dir, '.codequest', 'graph.json');
     if (!fs.existsSync(p)) {
-      console.error('aperio: no .aperio/graph.json — run `aperio scan` first.');
+      console.error('codequest: no .codequest/graph.json — run `codequest scan` first.');
       process.exit(1);
     }
     return JSON.parse(fs.readFileSync(p, 'utf8'));
@@ -88,14 +87,14 @@ function main() {
     const extracted = engine === 'tree-sitter' ? runTreeSitterExtract(dir) : null;
     const g = buildGraph(dir, extracted);
     g.engine = engine;
-    const cq = cacheDir(dir);
+    const cq = path.join(dir, '.codequest');
     fs.mkdirSync(cq, { recursive: true });
     fs.writeFileSync(path.join(cq, 'graph.json'), JSON.stringify(g, null, 2));
     fs.writeFileSync(path.join(cq, 'repo-map.md'), repoMapMd(g));
     const entryN = g.modules.filter(m => m.isEntry).length;
     return out(asJson
       ? JSON.stringify({ modules: g.modules.length, edges: g.edges.length, entries: entryN, engine })
-      : `aperio: scanned ${g.modules.length} modules, ${g.edges.length} import edges, ${entryN} entr${entryN === 1 ? 'y' : 'ies'} [engine: ${engine}] → .aperio/`);
+      : `codequest: scanned ${g.modules.length} modules, ${g.edges.length} import edges, ${entryN} entr${entryN === 1 ? 'y' : 'ies'} [engine: ${engine}] → .codequest/`);
   }
   if (cmd === 'map') return out(asJson
     ? JSON.stringify(loadGraph(dirOf(1)), null, 2)
@@ -111,15 +110,15 @@ function main() {
     ).join('\n'));
   }
   if (cmd === 'blast-radius') {
-    if (!args[1]) return fail('usage: aperio blast-radius <file> [dir]', asJson);
+    if (!args[1]) return fail('usage: codequest blast-radius <file> [dir]', asJson);
     return cmdBlastRadius(loadGraph(dirOf(2)), args[1], asJson);
   }
   if (cmd === 'story') {
-    if (!args[1]) return fail('usage: aperio story <entry-file> [dir]', asJson);
+    if (!args[1]) return fail('usage: codequest story <entry-file> [dir]', asJson);
     return cmdStory(loadGraph(dirOf(2)), args[1], asJson);
   }
   if (cmd === 'diff') {
-    if (!args[1] || !args[2]) return fail('usage: aperio diff <old> <new>  (dirs or graph.json paths)', asJson);
+    if (!args[1] || !args[2]) return fail('usage: codequest diff <old> <new>  (dirs or graph.json paths)', asJson);
     return cmdDiff(args[1], args[2], asJson, failOn);
   }
   if (cmd === 'init') {
@@ -129,7 +128,7 @@ function main() {
       return fail('audience must be beginner, professional, or expert', asJson);
     }
     const businessLens = !!flags.business;
-    const cq = cacheDir(dir);
+    const cq = path.join(dir, '.codequest');
     fs.mkdirSync(cq, { recursive: true });
     const p = path.join(cq, 'config.json');
     if (fs.existsSync(p) && !rawArgs.includes('--force')) {
@@ -141,24 +140,24 @@ function main() {
     };
     fs.writeFileSync(p, JSON.stringify(cfg, null, 2) + '\n');
     return out(asJson ? JSON.stringify(cfg, null, 2)
-      : `aperio: wrote ${p}\n  audience=${audience}  businessLens=${businessLens}\n  Copilot adapts explanations to this. Re-run scan to refresh the map.`);
+      : `codequest: wrote ${p}\n  audience=${audience}  businessLens=${businessLens}\n  Copilot adapts explanations to this. Re-run scan to refresh the map.`);
   }
   if (cmd === 'setup') {
-    const packDir = path.join(__dirname, '..'); // aperio/bin/aperio → aperio/
+    const packDir = path.join(__dirname, '..'); // codequest/bin/codequest → codequest/
     return cmdSetup(dirOf(1), packDir, asJson, flags);
   }
   if (cmd === 'history') return cmdHistory(dirOf(1), asJson);
   if (cmd === 'trends') return cmdTrends(dirOf(1), asJson);
   if (cmd === 'visualize') {
-    const packDir = path.join(__dirname, '..'); // aperio/bin/aperio → aperio/
+    const packDir = path.join(__dirname, '..'); // codequest/bin/codequest → codequest/
     return cmdVisualize(dirOf(1), packDir, flags);
   }
   if (cmd === 'start') {
-    const packDir = path.join(__dirname, '..'); // aperio/bin/aperio → aperio/
+    const packDir = path.join(__dirname, '..'); // codequest/bin/codequest → codequest/
     return cmdStart(dirOf(1), packDir, asJson, flags);
   }
   if (cmd === 'export') {
-    const packDir = path.join(__dirname, '..'); // aperio/bin/aperio → aperio/
+    const packDir = path.join(__dirname, '..'); // codequest/bin/codequest → codequest/
     return cmdExport(dirOf(1), packDir, flags.o || flags.out || null, flags);
   }
   return fail(`unknown command "${cmd}" — try --help`, asJson);
