@@ -27,19 +27,22 @@ leaves your machine.
 ## The 60-second version
 
 ```bash
-# 1. Copy the drop-in folder into your repo
+# Option A: install from npm (quickest)
+npm install -g codequest-ai
+cd /path/to/your-repo && codequest scan
+
+# Option B: drop-in folder (full Copilot pack: prompts, skills, MCP server)
 cp -r codequest /path/to/your-repo/
-
-# 2. Scan it — zero dependencies, offline (Node 18+)
 cd /path/to/your-repo && ./codequest/bin/codequest scan
+```
 
-# 3. Auto-configure your IDEs (detects VS Code, Cursor, Windsurf, Zed, …)
-./codequest/bin/codequest setup
+# Then, with either option:
+./codequest/bin/codequest setup   # auto-configure your IDEs (VS Code, Cursor, Windsurf, Zed, …)
 
-# 4. Optional: set your audience (beginner/professional/expert, business lens)
+# Optional: set your audience (beginner/professional/expert, business lens)
 ./codequest/bin/codequest init --audience professional
 
-# 5. In your IDE, open the AI agent and run:
+# In your IDE, open the AI agent and run:
 /codequest-onboard
 ```
 
