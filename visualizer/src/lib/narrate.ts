@@ -31,7 +31,7 @@ export function migrateProficiency(p: string | null): Proficiency {
     return p;
   if (p === 'developer') return 'junior';
   if (p === 'expert') return 'lead';
-  return 'junior';
+  return 'non-technical';
 }
 
 export interface Narration {

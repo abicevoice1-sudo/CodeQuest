@@ -152,7 +152,7 @@ describe('narrateFile proficiency', () => {
     expect(migrateProficiency('developer')).toBe('junior');
     expect(migrateProficiency('expert')).toBe('lead');
     expect(migrateProficiency('beginner')).toBe('beginner');
-    expect(migrateProficiency(null)).toBe('junior');
+    expect(migrateProficiency(null)).toBe('non-technical');
   });
 });
 
