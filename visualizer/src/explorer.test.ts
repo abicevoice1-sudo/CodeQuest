@@ -57,3 +57,21 @@ describe('mdToHtml', () => {
     expect(h).toContain('<b>hi</b>');
   });
 });
+
+describe('fuzzySearch', () => {
+  const ids = ['api/urls.py', 'api/views.py', 'web/app/page.tsx', 'codequest/lib/serve.js'];
+  it('ranks exact filename matches first', async () => {
+    const { fuzzySearch } = await import('./lib/search');
+    const hits = fuzzySearch('urls', ids);
+    expect(hits[0].id).toBe('api/urls.py');
+  });
+  it('matches subsequences', async () => {
+    const { fuzzySearch } = await import('./lib/search');
+    const hits = fuzzySearch('srv', ids);
+    expect(hits.some((h) => h.id === 'codequest/lib/serve.js')).toBe(true);
+  });
+  it('returns empty for no match', async () => {
+    const { fuzzySearch } = await import('./lib/search');
+    expect(fuzzySearch('zzz-nope', ids)).toEqual([]);
+  });
+});

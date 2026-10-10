@@ -21,6 +21,7 @@ import { CodePanel, useFileCode } from './components/CodePanel';
 import { ExplainPanel } from './components/ExplainPanel';
 import { SettingsModal } from './components/SettingsModal';
 import { parseVoiceCommand, resolveTarget, speak, startListening, voiceSupported } from './lib/voice';
+import { fuzzySearch } from './lib/search';
 
 /* ------------------------------------------------------------------ */
 /* Custom node                                                         */
@@ -28,12 +29,14 @@ import { parseVoiceCommand, resolveTarget, speak, startListening, voiceSupported
 
 function CQNode({ data, selected }: NodeProps<Node<CQNodeData>>) {
   const color = RISK_COLORS[(data.risk as Risk) || 'LOW'];
+  const hot = data.risk === 'CRITICAL' || data.risk === 'HIGH';
   return (
     <div
-      className={`cq-node${selected ? ' selected' : ''}${data.isTest ? ' test' : ''}`}
+      className={`cq-node${selected ? ' selected' : ''}${data.isTest ? ' test' : ''}${hot ? ' hot' : ''}`}
       style={{ ['--risk' as string]: color }}
     >
       <Handle type="target" position={Position.Left} className="cq-handle" />
+      <span className="cq-riskbar" />
       <div className="cq-node-body">
         <div className="cq-node-title" title={data.path}>
           {data.isEntry && <span className="cq-entry-dot" title="Entry point" />}
@@ -90,6 +93,18 @@ export default function App() {
   const [listening, setListening] = useState(false);
   const [voiceMsg, setVoiceMsg] = useState('');
   const [explainKey, setExplainKey] = useState(0);
+  const [searchFocus, setSearchFocus] = useState(false);
+  const [searchIdx, setSearchIdx] = useState(0);
+  const [tip, setTip] = useState('');
+  const serverMode =
+    typeof window !== 'undefined' &&
+    !!(window as unknown as { __CODEQUEST_GRAPH__?: unknown }).__CODEQUEST_GRAPH__;
+
+  useEffect(() => {
+    if (!tip) return;
+    const t = setTimeout(() => setTip(''), 9000);
+    return () => clearTimeout(t);
+  }, [tip ]);
   const flowRef = useRef<any>(null); // eslint-disable-line @typescript-eslint/no-explicit-any
   const fileInput = useRef<HTMLInputElement>(null);
   const stopListenRef = useRef<(() => void) | null>(null);
@@ -109,6 +124,15 @@ export default function App() {
     setSelectedId(null);
     setBlast(null);
     setError('');
+    // Large repos: declutter by default so the graph stays readable.
+    if (g.modules.length > 400) {
+      setHideTests(true);
+      setHideAssets(true);
+      setTip('Large repo — tests & configs hidden. Toggle them in Show.');
+    } else {
+      setHideTests(false);
+      setHideAssets(false);
+    }
   }, []);
 
   // Re-layout whenever graph or filters change.
@@ -132,6 +156,9 @@ export default function App() {
     const injected = (window as unknown as { __CODEQUEST_GRAPH__?: CodeQuestGraph }).__CODEQUEST_GRAPH__;
     if (injected && injected.modules) {
       loadGraph(injected, 'workspace');
+      if (injected.modules.length <= 400) {
+        setTip('Click any module to inspect it — Code, Explain, blast radius. 🎙 Voice works in Chrome.');
+      }
       return;
     }
     fetch('./graph.json')
@@ -192,17 +219,21 @@ export default function App() {
     [graph],
   );
 
-  const doSearch = useCallback(() => {
-    if (!graph || !query.trim()) return;
-    const q = query.trim().toLowerCase();
-    const hit = nodes.find(
-      (n) => n.id.toLowerCase().includes(q) || (n.data.label as string).toLowerCase().includes(q),
-    );
-    if (hit && flowRef.current) {
-      setSelectedId(hit.id);
-      flowRef.current.fitView({ nodes: [{ id: hit.id }], duration: 400, padding: 0.4 });
-    }
-  }, [graph, query, nodes]);
+  const searchResults = useMemo(
+    () => (graph && query.trim() ? fuzzySearch(query, graph.modules.map((m) => m.id)) : []),
+    [graph, query],
+  );
+
+  const onSearchKey = (e: React.KeyboardEvent) => {
+    if (e.key === 'ArrowDown') { e.preventDefault(); setSearchIdx((i) => Math.min(i + 1, searchResults.length - 1)); }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); setSearchIdx((i) => Math.max(i - 1, 0)); }
+    else if (e.key === 'Enter') {
+      const hit = searchResults[searchIdx] || searchResults[0];
+      if (hit) { focusNode(hit.id); setSearchFocus(false); }
+    } else if (e.key === 'Escape') { setSearchFocus(false); }
+  };
+
+  useEffect(() => { setSearchIdx(0); }, [query]);
 
   /* ---------------- voice control ---------------- */
   const handleVoice = useCallback(
@@ -406,12 +437,32 @@ export default function App() {
         <div className="search">
           <input
             value={query}
-            placeholder="Search files…  ⏎"
-            onChange={(e) => setQuery(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && doSearch()}
+            placeholder="Search files…"
+            onChange={(e) => { setQuery(e.target.value); setSearchFocus(true); }}
+            onKeyDown={onSearchKey}
+            onFocus={() => setSearchFocus(true)}
+            onBlur={() => setTimeout(() => setSearchFocus(false), 150)}
           />
+          {searchFocus && searchResults.length > 0 && (
+            <div className="search-results">
+              {searchResults.map((h, i) => (
+                <button
+                  key={h.id}
+                  className={i === searchIdx ? 'on' : ''}
+                  onMouseDown={(e) => { e.preventDefault(); focusNode(h.id); setSearchFocus(false); }}
+                  onMouseEnter={() => setSearchIdx(i)}
+                  title={h.id}
+                >
+                  {shortName(h.id)}
+                  <span className="sr-path">{h.id}</span>
+                </button>
+              ))}
+            </div>
+          )}
         </div>
-        <button className="ghost small" onClick={() => fileInput.current?.click()}>Load another</button>
+        {!serverMode && (
+          <button className="ghost small" onClick={() => fileInput.current?.click()}>Load another</button>
+        )}
         {voiceSupported() && (
           <button
             className={`ghost small${listening ? ' listening' : ''}`}
@@ -635,6 +686,7 @@ export default function App() {
         </aside>
       </div>
       {error && <div className="toast">{error}</div>}
+      {tip && <div className="toast tip">{tip}</div>}
       {voiceMsg && <div className="toast voice">{voiceMsg}</div>}
       {showSettings && <SettingsModal onClose={() => setShowSettings(false)} />}
     </div>

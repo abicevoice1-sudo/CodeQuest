@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.4.0 — 2026-10-10
+- Visual craft pass: nodes sized by importance (entry points + heavily-imported modules stand taller), risk glow on hot nodes, glowing risk bar, hover lift, smoother edges.
+- Search 2.0: fuzzy matching with a results dropdown, keyboard navigation (↑↓/Enter/Esc), full-path subtitles.
+- Large-repo guard: over 400 modules auto-hides tests & configs with a notice, so the graph stays readable.
+- First-run coach tip; "Load another" hidden in server mode (the CLI is the front door now).
+- Tests: 22/22 (analyzer), 19/19 (visualizer) green.
+
 ## 1.3.0 — 2026-10-10
 - Visualizer is now a real code explorer: click any module → **Code** tab shows its source with syntax highlighting, served live from your repo.
 - **AI file explanations**: ✨ Explain tab calls any OpenAI-compatible LLM with your own key (Settings ⚙, stored only in your browser).

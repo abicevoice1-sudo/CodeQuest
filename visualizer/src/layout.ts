@@ -15,11 +15,17 @@ export interface CQNodeData extends Record<string, unknown> {
   kind: string;
 }
 
-const NODE_H = 64;
+const BASE_H = 64;
 
 function nodeWidth(m: GraphModule): number {
   // Width grows with label length so text never clips.
   return Math.min(280, Math.max(150, shortName(m.path).length * 8.5 + 56));
+}
+
+function nodeHeight(m: GraphModule): number {
+  // Taller nodes = more important (entry points, heavily depended-on).
+  const importance = (m.fanIn || 0) + (m.isEntry ? 3 : 0);
+  return BASE_H + Math.min(22, importance * 2.5);
 }
 
 export function layoutGraph(
@@ -38,7 +44,7 @@ export function layoutGraph(
       opts.risks.has(m.risk || 'LOW'),
   );
   const shownIds = new Set(shown.map((m) => m.id));
-  shown.forEach((m) => dag.setNode(m.id, { width: nodeWidth(m), height: NODE_H }));
+  shown.forEach((m) => dag.setNode(m.id, { width: nodeWidth(m), height: nodeHeight(m) }));
   const edges: Edge[] = [];
   for (const e of g.edges) {
     if (!shownIds.has(e.from) || !shownIds.has(e.to)) continue;
@@ -47,7 +53,7 @@ export function layoutGraph(
       id: `${e.from}→${e.to}`,
       source: e.from,
       target: e.to,
-      type: 'default',
+      type: 'smoothstep',
       animated: false,
       style: { stroke: '#3f3f46', strokeWidth: 1.5 },
     });
@@ -57,10 +63,11 @@ export function layoutGraph(
   const nodes: Node<CQNodeData>[] = shown.map((m) => {
     const p = dag.node(m.id);
     const w = nodeWidth(m);
+    const h = nodeHeight(m);
     return {
       id: m.id,
       type: 'cq',
-      position: { x: p.x - w / 2, y: p.y - NODE_H / 2 },
+      position: { x: p.x - w / 2, y: p.y - h / 2 },
       data: {
         label: shortName(m.path),
         path: m.path,
@@ -72,7 +79,7 @@ export function layoutGraph(
         isTest: m.isTest,
         kind: m.kind,
       },
-      style: { width: w, height: NODE_H },
+      style: { width: w, height: h },
     };
   });
 

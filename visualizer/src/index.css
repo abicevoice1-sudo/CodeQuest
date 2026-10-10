@@ -141,7 +141,6 @@ button.small { padding: 7px 14px; font-size: 13px; border-radius: 8px; }
 .cq-node {
   background: linear-gradient(180deg, #17171c, #121215);
   border: 1px solid var(--border);
-  border-left: 3px solid var(--risk, #71717a);
   border-radius: 10px;
   height: 100%;
   transition: box-shadow 0.15s, border-color 0.15s, opacity 0.25s;
@@ -329,3 +328,36 @@ button.small { padding: 7px 14px; font-size: 13px; border-radius: 8px; }
 .toast.voice { border-color: #8b5cf666; }
 .ghost.small.listening { background: #f43f5e22; border-color: #f43f5e88; color: #fda4af; animation: pulse 1.2s ease-in-out infinite; }
 @keyframes pulse { 50% { opacity: 0.6; } }
+
+/* ---------------- 10/10 craft pass ---------------- */
+.cq-node {
+  position: relative;
+  box-shadow: 0 2px 12px rgba(0,0,0,0.45), 0 0 18px -6px var(--risk, transparent);
+}
+.cq-node.hot { box-shadow: 0 2px 16px rgba(0,0,0,0.5), 0 0 26px -4px var(--risk); }
+.cq-node:hover {
+  border-color: #71717a;
+  box-shadow: 0 6px 28px rgba(0,0,0,0.6), 0 0 24px -4px var(--risk);
+  transform: translateY(-1px);
+}
+.cq-riskbar {
+  position: absolute; left: 0; top: 8px; bottom: 8px; width: 3px; border-radius: 2px;
+  background: var(--risk); box-shadow: 0 0 8px var(--risk);
+}
+.react-flow__edge:hover .react-flow__edge-path { stroke-width: 3 !important; }
+.react-flow__edge.animated .react-flow__edge-path { stroke-dasharray: 6 4; }
+
+/* search dropdown */
+.search { position: relative; }
+.search-results {
+  position: absolute; top: calc(100% + 6px); left: 0; right: 0; z-index: 50;
+  background: #141419; border: 1px solid #2a2a31; border-radius: 10px;
+  overflow: hidden; box-shadow: 0 12px 40px rgba(0,0,0,0.6);
+}
+.search-results button {
+  display: block; width: 100%; text-align: left; padding: 8px 12px;
+  background: transparent; border: none; color: #e4e4e7; font-size: 13px;
+}
+.search-results button .sr-path { display: block; font-size: 10px; color: #63636b; margin-top: 1px; }
+.search-results button.on, .search-results button:hover { background: #1c2a3a; }
+.toast.tip { border-color: #38bdf866; }
