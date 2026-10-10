@@ -1,5 +1,8 @@
 # Changelog
 
+## 1.2.1 — 2026-10-10
+- Visualizer: proper page title ("CodeQuest — Repo Graph"); empty state leads with the `npx codequest-ai start` command instead of a bare file upload.
+
 ## 1.2.0 — 2026-10-10
 - New `start` command: the super-easy one — copies the pack into your repo, sets up your IDE, scans, and opens the interactive graph in your browser. One command, everything.
 - One-line setup: `npx codequest-ai start` (Node 18+), or `install.sh` / `install.ps1` one-liners that install Node + the package + launch.

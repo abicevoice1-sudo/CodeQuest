@@ -3,7 +3,7 @@
 const fs = require('fs');
 const path = require('path');
 const { execFileSync } = require('child_process');
-const VERSION = '1.2.0';
+const VERSION = '1.2.1';
 const SKIP_DIRS = new Set(['node_modules', '.git', 'dist', 'build', 'coverage', '.next',
   'vendor', '__pycache__', '.venv', 'venv', 'target', '.codequest', '.idea', '.vscode']);
 const EXT_LANG = {
