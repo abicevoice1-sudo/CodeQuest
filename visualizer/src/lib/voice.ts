@@ -57,12 +57,21 @@ export function resolveTarget(target: string, ids: string[]): string | null {
   return scored.length ? scored[0][1] : null;
 }
 
-export function speak(text: string): void {
+export function speak(text: string, onEnd?: () => void): void {
   try {
     const synth = window.speechSynthesis;
     synth.cancel();
     const u = new SpeechSynthesisUtterance(text);
     u.rate = 1.05;
+    if (onEnd) {
+      let done = false;
+      const finish = () => { if (!done) { done = true; onEnd(); } };
+      u.onend = finish;
+      u.onerror = finish;
+      // Fallback: if speech never ends (no voices / blocked), advance anyway.
+      const words = text.split(/\s+/).length;
+      setTimeout(finish, Math.min(30000, Math.max(6000, (words / 2.4) * 1000)));
+    }
     synth.speak(u);
   } catch { /* voice out unavailable — UI still shows text */ }
 }

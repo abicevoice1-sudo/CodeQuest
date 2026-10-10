@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.7.0 — 2026-10-10
+- The app now explains itself: a welcome overlay ("This is a map of your codebase") and a **guided tour** — press play and it flies you through the 5 most important files, speaking each one's purpose and impact.
+- The side panel now answers "What am I looking at?" in plain sentences: file counts, the most connected file, circular imports, critical risks.
+
 ## 1.6.0 — 2026-10-10
 - New `export` command: `codequest export -o report.html` writes one self-contained HTML file — graph, source code, and UI all inlined. Double-click it, email it, host it anywhere. No server, no uploads, nothing to install for the viewer.
 - The Code tab now prefers embedded sources, so exported reports show code offline.

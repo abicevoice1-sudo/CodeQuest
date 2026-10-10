@@ -97,6 +97,8 @@ export default function App() {
   const [searchIdx, setSearchIdx] = useState(0);
   const [tip, setTip] = useState('');
   const [narration, setNarration] = useState<Narration | null>(null);
+  const [tour, setTour] = useState<{ stops: string[]; idx: number } | null>(null);
+  const [showWelcome, setShowWelcome] = useState(false);
   const serverMode =
     typeof window !== 'undefined' &&
     !!(window as unknown as { __CODEQUEST_GRAPH__?: unknown }).__CODEQUEST_GRAPH__;
@@ -157,7 +159,11 @@ export default function App() {
     const injected = (window as unknown as { __CODEQUEST_GRAPH__?: CodeQuestGraph }).__CODEQUEST_GRAPH__;
     if (injected && injected.modules) {
       loadGraph(injected, 'workspace');
-      if (injected.modules.length <= 400) {
+      let welcomed = false;
+      try { welcomed = !!localStorage.getItem('codequest.welcomed'); } catch { /* noop */ }
+      if (!welcomed && injected.modules.length <= 400) {
+        setShowWelcome(true);
+      } else if (injected.modules.length <= 400) {
         setTip('Click any module to inspect it — Code, Explain, blast radius. 🎙 Voice works in Chrome.');
       }
       return;
@@ -315,6 +321,79 @@ export default function App() {
       (msg) => { setListening(false); setVoiceMsg(msg); },
     );
   }, [listening, handleVoice]);
+
+  /* ---------------- guided tour ---------------- */
+  const startTour = useCallback(() => {
+    if (!graph) return;
+    const stops = [...graph.modules]
+      .filter((m) => !m.isTest && m.kind === 'code')
+      .sort(
+        (a, b) =>
+          (b.fanIn + b.fanOut + (b.isEntry ? 5 : 0)) - (a.fanIn + a.fanOut + (a.isEntry ? 5 : 0)),
+      )
+      .slice(0, 5)
+      .map((m) => m.id);
+    if (!stops.length) return;
+    setShowWelcome(false);
+    try { localStorage.setItem('codequest.welcomed', '1'); } catch { /* noop */ }
+    setTour({ stops, idx: 0 });
+  }, [graph]);
+
+  const stopTour = useCallback(() => {
+    setTour(null);
+    try { window.speechSynthesis?.cancel(); } catch { /* noop */ }
+  }, []);
+
+  const tourNext = useCallback(() => {
+    setTour((t) => {
+      if (!t) return t;
+      if (t.idx >= t.stops.length - 1) {
+        try { window.speechSynthesis?.cancel(); } catch { /* noop */ }
+        return null;
+      }
+      return { stops: t.stops, idx: t.idx + 1 };
+    });
+  }, []);
+
+  // Each tour stop: fly to the file, show + speak its purpose and impact.
+  useEffect(() => {
+    if (!tour || !graph) return;
+    const id = tour.stops[tour.idx];
+    if (!id) { setTour(null); return; }
+    focusNode(id);
+    const n = narrateFile(id, graph);
+    setNarration(n);
+    setTab('info');
+    setVoiceMsg(`Tour ${tour.idx + 1} of ${tour.stops.length}: ${shortName(id)}`);
+    speak(`${n.purpose} ${n.impact}`, () => {
+      setTimeout(() => tourNext(), 1200);
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tour]);
+
+  /* ---------------- plain-language insights ---------------- */
+  const insights = useMemo(() => {
+    if (!graph) return [] as string[];
+    const out: string[] = [];
+    const entries = graph.modules.filter((m) => m.isEntry);
+    out.push(
+      `This codebase has ${graph.modules.length} files and ${graph.edges.length} connections between them.` +
+        (entries.length ? ` It starts in ${entries.length === 1 ? 'one place' : `${entries.length} places`}.` : '')
+    );
+    const top = [...graph.modules]
+      .filter((m) => !m.isTest)
+      .sort((a, b) => b.fanIn + b.fanOut - (a.fanIn + a.fanOut))[0];
+    if (top) {
+      out.push(
+        `${shortName(top.path)} is the most connected file — ${top.fanIn} other file${top.fanIn === 1 ? '' : 's'} depend on it.`
+      );
+    }
+    const cycles = graph.cycles?.length || 0;
+    if (cycles) out.push(`⚠ ${cycles} circular import${cycles === 1 ? '' : 's'} — files importing each other in a loop. Worth fixing.`);
+    const crit = graph.modules.filter((m) => m.risk === 'CRITICAL').length;
+    if (crit) out.push(`${crit} file${crit === 1 ? '' : 's'} marked critical risk — change carefully.`);
+    return out;
+  }, [graph]);
 
   // Blast-radius styling pass.
   useEffect(() => {
@@ -696,9 +775,12 @@ export default function App() {
             </section>
           ) : (
             <section className="hint">
-              <h3>Explore</h3>
-              <p>Click any module to inspect its exports, imports, and dependents.</p>
-              <p>Open a module and hit <b>Show blast radius</b> to see everything a change would touch.</p>
+              <h3>What am I looking at?</h3>
+              {insights.map((s, i) => (
+                <p key={i} className="insight">{s}</p>
+              ))}
+              <button className="tour-cta" onClick={startTour}>▶ Take the guided tour</button>
+              <p className="hint-sub">Each box is a file. Lines show which files talk to which. Click any box to inspect it.</p>
               {cycles.length > 0 && (
                 <div className="cycle-warn">
                   ⚠ {cycles.length} circular {cycles.length === 1 ? 'import' : 'imports'} detected
@@ -715,6 +797,34 @@ export default function App() {
       </div>
       {error && <div className="toast">{error}</div>}
       {tip && <div className="toast tip">{tip}</div>}
+      {tour && (
+        <div className="tour-bar">
+          <span className="tour-progress">Tour {tour.idx + 1} of {tour.stops.length}</span>
+          <span className="tour-file">{shortName(tour.stops[tour.idx])}</span>
+          <button className="ghost small" onClick={tourNext}>Next →</button>
+          <button className="ghost small" onClick={stopTour}>✕ Stop</button>
+        </div>
+      )}
+      {showWelcome && graph && (
+        <div className="modal-backdrop">
+          <div className="modal welcome">
+            <div className="drop-logo">⬢</div>
+            <h2>This is a map of your codebase.</h2>
+            <p className="modal-sub">
+              Every box is a file. Lines show which files talk to which.
+              Bigger glowing boxes are the important ones. Click anything to inspect it —
+              read its code, hear what it does, see what would break if you changed it.
+            </p>
+            <div className="modal-actions welcome-actions">
+              <button className="tour-go" onClick={startTour}>▶ Take the guided tour</button>
+              <button className="ghost" onClick={() => {
+                setShowWelcome(false);
+                try { localStorage.setItem('codequest.welcomed', '1'); } catch { /* noop */ }
+              }}>Explore on my own</button>
+            </div>
+          </div>
+        </div>
+      )}
       {voiceMsg && <div className="toast voice">{voiceMsg}</div>}
       {showSettings && <SettingsModal onClose={() => setShowSettings(false)} />}
     </div>
