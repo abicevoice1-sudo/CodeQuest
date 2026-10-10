@@ -652,3 +652,58 @@ details.filters section { padding: 0 12px 12px; }
 }
 .cl.flash { background: #38bdf822; animation: clflash 1.8s ease-out; }
 @keyframes clflash { 0% { background: #38bdf844; } 100% { background: #38bdf811; } }
+
+/* ================= proficiency ================= */
+.prof-select {
+  padding: 7px 10px; border-radius: 8px; font-size: 12.5px; font-weight: 600;
+  background: #141417; border: 1px solid #2a2a30; color: #d4d4d8; cursor: pointer;
+}
+.prof-select:focus { outline: none; border-color: #38bdf8; }
+.prof-q { font-size: 15px; font-weight: 700; margin: 18px 0 10px; color: #fafafa; }
+.prof-q span { display: block; font-size: 12.5px; font-weight: 400; color: #71717a; margin-top: 3px; }
+.prof-cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.prof-cards button {
+  display: flex; flex-direction: column; gap: 4px; align-items: flex-start; text-align: left;
+  padding: 12px; border-radius: 10px; background: #141419; border: 1px solid #2a2a32;
+  color: #e4e4e7; cursor: pointer;
+}
+.prof-cards button:hover { border-color: #38bdf8; background: #16202e; }
+.prof-cards b { font-size: 13px; }
+.prof-cards span { font-size: 11px; color: #71717a; line-height: 1.4; }
+.prof-skip { margin-top: 14px; width: 100%; }
+@media (max-width: 900px) {
+  .prof-cards { grid-template-columns: 1fr; }
+  .prof-select { font-size: 11.5px; padding: 6px 8px; }
+}
+
+/* ================= scope bar (repo / folder / file diagrams) ================= */
+.scope-bar {
+  position: absolute; top: 12px; left: 12px; z-index: 7;
+  display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
+  background: rgba(16, 16, 20, 0.92); border: 1px solid #2a2a32; border-radius: 24px;
+  padding: 6px 10px; backdrop-filter: blur(6px); font-size: 12.5px; max-width: calc(100% - 24px);
+}
+.scope-bar button {
+  background: none; border: none; color: #a1a1aa; font-size: 12.5px; font-weight: 600;
+  cursor: pointer; padding: 4px 8px; border-radius: 14px; white-space: nowrap;
+}
+.scope-bar button:hover { color: #fff; background: #1e2a3a; }
+.scope-bar button.on { color: #38bdf8; }
+.scope-sep { color: #52525b; }
+.scope-crumb { display: flex; align-items: center; gap: 6px; }
+.scope-count { font-size: 11px; color: #63636b; background: #1b1b20; border-radius: 10px; padding: 2px 8px; }
+.scope-cta {
+  border: 1px solid #38bdf855 !important; color: #7dd3fc !important;
+}
+.scope-cta:hover { background: #1e3a52 !important; color: #fff !important; }
+
+/* folder diagram button in the explorer (revealed on hover) */
+.ft-row { position: relative; }
+.ft-diagram {
+  display: none; margin-left: auto; font-size: 12px; color: #71717a;
+  padding: 2px 6px; border-radius: 6px; cursor: pointer; flex-shrink: 0;
+}
+.ft-dir:hover .ft-diagram { display: inline-block; }
+.ft-diagram:hover { color: #38bdf8; background: #1e2a3a; }
+.ft-dir .ft-count { margin-left: 0; }
+.ft-dir:hover .ft-count { display: none; }

@@ -4,10 +4,19 @@ import { shortName, type CodeQuestGraph } from '../types';
 
 export interface PaletteHit {
   id: string;
-  kind: 'file' | 'symbol' | 'content';
+  kind: 'file' | 'symbol' | 'content' | 'command';
   label: string;
   sub: string;
   line?: number;
+  cmd?: PaletteCommand;
+}
+
+export interface PaletteCommand {
+  id: string;
+  label: string;
+  sub: string;
+  keywords: string;
+  run: () => void;
 }
 
 const RECENT_KEY = 'codequest.recent';
@@ -42,12 +51,14 @@ const KIND_ICON: Record<PaletteHit['kind'], string> = {
   file: '📄',
   symbol: '🔣',
   content: '📝',
+  command: '⚡',
 };
 
 const KIND_TITLE: Record<PaletteHit['kind'], string> = {
   file: 'Files',
   symbol: 'Symbols',
   content: 'Code',
+  command: 'Actions',
 };
 
 export function CommandPalette({
@@ -55,11 +66,13 @@ export function CommandPalette({
   open,
   onClose,
   onSelect,
+  commands = [],
 }: {
   graph: CodeQuestGraph;
   open: boolean;
   onClose: () => void;
   onSelect: (id: string, line?: number) => void;
+  commands?: PaletteCommand[];
 }) {
   const [query, setQuery] = useState('');
   const [active, setActive] = useState(0);
@@ -95,13 +108,19 @@ export function CommandPalette({
       }
       return out;
     }
+    const ql = q.toLowerCase();
+    // Actions first — "diagram", "architecture", "blast radius"…
+    for (const c of commands) {
+      if ((c.keywords + ' ' + c.label).toLowerCase().includes(ql)) {
+        out.push({ id: `cmd:${c.id}`, kind: 'command', label: c.label, sub: c.sub, cmd: c });
+      }
+    }
     // Files — fuzzy path match.
     const files = fuzzySearch(q, graph.modules.map((m) => m.id)).slice(0, 8);
     for (const f of files) out.push({ id: f.id, kind: 'file', label: shortName(f.id), sub: f.id });
 
     // Symbols — export names.
     if (q.length >= 2) {
-      const ql = q.toLowerCase();
       let n = 0;
       for (const m of graph.modules) {
         for (const ex of m.exports || []) {
@@ -145,7 +164,7 @@ export function CommandPalette({
       }
     }
     return out;
-  }, [graph, query]);
+  }, [graph, query, commands]);
 
   useEffect(() => setActive(0), [query]);
   useEffect(() => {
@@ -157,6 +176,11 @@ export function CommandPalette({
   if (!open) return null;
 
   const go = (h: PaletteHit) => {
+    if (h.kind === 'command' && h.cmd) {
+      h.cmd.run();
+      onClose();
+      return;
+    }
     recordRecent(h.id);
     onSelect(h.id, h.line);
     onClose();

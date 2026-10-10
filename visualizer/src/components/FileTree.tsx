@@ -56,6 +56,7 @@ function TreeRow({
   onToggle,
   selectedId,
   onSelect,
+  onFolderDiagram,
 }: {
   node: TreeNode;
   depth: number;
@@ -63,6 +64,7 @@ function TreeRow({
   onToggle: (path: string) => void;
   selectedId: string | null;
   onSelect: (id: string) => void;
+  onFolderDiagram: (path: string) => void;
 }) {
   if (node.isDir) {
     const open = expanded.has(node.path);
@@ -76,6 +78,13 @@ function TreeRow({
           <span className="ft-caret">{open ? '▾' : '▸'}</span>
           <span className="ft-icon">{open ? '📂' : '📁'}</span>
           <span className="ft-name">{node.name || '/'}</span>
+          <span
+            className="ft-diagram"
+            title="View this folder as a diagram"
+            onClick={(e) => { e.stopPropagation(); onFolderDiagram(node.path); }}
+          >
+            ◈
+          </span>
           <span className="ft-count">{node.children.length}</span>
         </button>
         {open &&
@@ -88,6 +97,7 @@ function TreeRow({
               onToggle={onToggle}
               selectedId={selectedId}
               onSelect={onSelect}
+              onFolderDiagram={onFolderDiagram}
             />
           ))}
       </>
@@ -117,10 +127,12 @@ export function FileTree({
   graph,
   selectedId,
   onSelect,
+  onFolderDiagram,
 }: {
   graph: CodeQuestGraph;
   selectedId: string | null;
   onSelect: (id: string) => void;
+  onFolderDiagram: (path: string) => void;
 }) {
   const [query, setQuery] = useState('');
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
@@ -178,6 +190,7 @@ export function FileTree({
             onToggle={toggle}
             selectedId={selectedId}
             onSelect={onSelect}
+            onFolderDiagram={onFolderDiagram}
           />
         ))}
       </div>

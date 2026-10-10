@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.10.0 — 2026-10-10
+- The auto-playing tour is gone. First open now asks your technical level (not technical / developer / expert) and every explanation — including the 🔊 narration — adapts: plain language, standard terms, or terse expert. Switch anytime in the header.
+- **Scoped diagrams**: the graph now zooms — file diagram (one file + its connections), folder diagram (◈ button on any folder in the explorer), whole-repo diagram — with a breadcrumb bar and explicit "Folder / Repo" zoom-out buttons.
+- The command palette is now a command bar: type "diagram" or "architecture" and it offers diagram actions for the current file, its folder, or the whole repo, plus blast radius.
+
 ## 1.9.0 — 2026-10-10
 - The file view is redesigned: breadcrumb header with badges, a "What it does / If you change it" summary card, stat cards, a proper blast-radius button, clean import lists, and a code pane with its own header (filename, language, line count, copy button) that fills the column. On phones the file view switches to About/Code tabs.
 - New **command palette** (⌘K / Ctrl+K): fuzzy file search, symbol (export) search, and full code-content search with line snippets that jump straight to the matching line — plus recent files and full keyboard navigation.

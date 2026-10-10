@@ -101,3 +101,36 @@ describe('narrateFile', () => {
     expect(iso.impact).toContain('ripple through');
   });
 });
+
+describe('narrateFile proficiency', () => {
+  const graph = {
+    modules: [
+      { id: 'a.js', path: 'a.js', layer: 'app', risk: 'HIGH', lines: 42, isEntry: true, exports: ['start'], fanIn: 1, fanOut: 0 },
+      { id: 'b.js', path: 'b.js', layer: 'lib', risk: 'LOW', lines: 10, exports: [], fanIn: 0, fanOut: 0 },
+    ],
+    edges: [{ from: 'b.js', to: 'a.js' }],
+  } as never;
+
+  it('beginner tone avoids jargon', async () => {
+    const { narrateFile } = await import('./lib/narrate');
+    const n = narrateFile('a.js', graph, 'beginner');
+    expect(n.purpose).not.toContain('module');
+    expect(n.purpose).not.toContain('entry point');
+    expect(n.purpose).toContain('starts running');
+    expect(n.impact).toContain('could break');
+  });
+
+  it('expert tone is terse', async () => {
+    const { narrateFile } = await import('./lib/narrate');
+    const n = narrateFile('a.js', graph, 'expert');
+    expect(n.purpose).toContain('Entry');
+    expect(n.impact).toContain('Blast radius');
+    expect(n.purpose.length).toBeLessThan(220);
+  });
+
+  it('defaults to developer tone', async () => {
+    const { narrateFile } = await import('./lib/narrate');
+    const n = narrateFile('a.js', graph);
+    expect(n.purpose).toContain('entry point');
+  });
+});

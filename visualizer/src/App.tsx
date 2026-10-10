@@ -17,13 +17,15 @@ import '@xyflow/react/dist/style.css';
 import './index.css';
 import { layoutGraph, blastRadius, type CQNodeData } from './layout';
 import { RISK_COLORS, LAYER_COLORS, shortName, type CodeQuestGraph, type Risk } from './types';
+
+export type Scope = { kind: 'repo' } | { kind: 'folder'; path: string } | { kind: 'file'; id: string };
 import { useFileCode } from './components/CodePanel';
-import { CommandPalette, recordRecent } from './components/CommandPalette';
+import { CommandPalette, recordRecent, type PaletteCommand } from './components/CommandPalette';
 import { FileTree } from './components/FileTree';
 import { FileDetail } from './components/FileDetail';
 import { SettingsModal } from './components/SettingsModal';
 import { parseVoiceCommand, resolveTarget, speak, startListening, voiceSupported } from './lib/voice';
-import { narrateFile, type Narration } from './lib/narrate';
+import { narrateFile, type Narration, type Proficiency } from './lib/narrate';
 
 /* ------------------------------------------------------------------ */
 /* Custom node                                                         */
@@ -84,6 +86,34 @@ export default function App() {
   const [blast, setBlast] = useState<Map<string, number> | null>(null);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [focusLine, setFocusLine] = useState<number | undefined>(undefined);
+  const [scope, setScope] = useState<Scope>({ kind: 'repo' });
+
+  /** The graph actually drawn: whole repo, one folder, or one file's neighborhood. */
+  const viewGraph = useMemo((): CodeQuestGraph | null => {
+    if (!graph) return null;
+    if (scope.kind === 'repo') return graph;
+    if (scope.kind === 'folder') {
+      const prefix = scope.path + '/';
+      const ids = new Set(graph.modules.filter((m) => m.id.startsWith(prefix)).map((m) => m.id));
+      return {
+        ...graph,
+        modules: graph.modules.filter((m) => ids.has(m.id)),
+        edges: graph.edges.filter((e) => ids.has(e.from) && ids.has(e.to)),
+        cycles: [],
+      };
+    }
+    const ids = new Set<string>([scope.id]);
+    for (const e of graph.edges) {
+      if (e.from === scope.id) ids.add(e.to);
+      if (e.to === scope.id) ids.add(e.from);
+    }
+    return {
+      ...graph,
+      modules: graph.modules.filter((m) => ids.has(m.id)),
+      edges: graph.edges.filter((e) => ids.has(e.from) && ids.has(e.to)),
+      cycles: [],
+    };
+  }, [graph, scope]);
   const [hideTests, setHideTests] = useState(false);
   const [hideAssets, setHideAssets] = useState(false);
   const [layers, setLayers] = useState<Set<string>>(new Set());
@@ -97,8 +127,21 @@ export default function App() {
   const [voiceMsg, setVoiceMsg] = useState('');
   const [tip, setTip] = useState('');
   const [narration, setNarration] = useState<Narration | null>(null);
-  const [tour, setTour] = useState<{ stops: string[]; idx: number } | null>(null);
   const [showWelcome, setShowWelcome] = useState(false);
+  const [proficiency, setProficiency] = useState<Proficiency>(() => {
+    try {
+      const p = localStorage.getItem('codequest.proficiency');
+      return p === 'beginner' || p === 'expert' ? p : 'developer';
+    } catch {
+      return 'developer';
+    }
+  });
+
+  const pickProf = useCallback((p: Proficiency) => {
+    setProficiency(p);
+    try { localStorage.setItem('codequest.proficiency', p); } catch { /* noop */ }
+    setShowWelcome(false);
+  }, []);
   const serverMode =
     typeof window !== 'undefined' &&
     !!(window as unknown as { __CODEQUEST_GRAPH__?: unknown }).__CODEQUEST_GRAPH__;
@@ -126,6 +169,7 @@ export default function App() {
     setFileName(name);
     setSelectedId(null);
     setBlast(null);
+    setScope({ kind: 'repo' });
     setError('');
     // Large repos: declutter by default so the graph stays readable.
     if (g.modules.length > 400) {
@@ -138,10 +182,10 @@ export default function App() {
     }
   }, []);
 
-  // Re-layout whenever graph or filters change.
+  // Re-layout whenever the graph, scope, or filters change.
   useEffect(() => {
-    if (!graph) return;
-    const { nodes: ns, edges: es, counts: c } = layoutGraph(graph, {
+    if (!viewGraph) return;
+    const { nodes: ns, edges: es, counts: c } = layoutGraph(viewGraph, {
       hideTests,
       hideAssets,
       layers: layers.size ? layers : new Set(allLayers),
@@ -152,7 +196,7 @@ export default function App() {
     setCounts(c);
     setSelectedId(null);
     setBlast(null);
-  }, [graph, hideTests, hideAssets, layers, risks]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [viewGraph, hideTests, hideAssets, layers, risks]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Try injected graph (VS Code extension) → ./graph.json → drop screen.
   useEffect(() => {
@@ -160,7 +204,7 @@ export default function App() {
     if (injected && injected.modules) {
       loadGraph(injected, 'workspace');
       let welcomed = false;
-      try { welcomed = !!localStorage.getItem('codequest.welcomed'); } catch { /* noop */ }
+      try { welcomed = !!localStorage.getItem('codequest.proficiency'); } catch { /* noop */ }
       if (!welcomed && injected.modules.length <= 400) {
         setShowWelcome(true);
       } else if (injected.modules.length <= 400) {
@@ -198,20 +242,31 @@ export default function App() {
     setSelectedId(id);
   }, []);
 
-  // Reset to the info tab whenever a different module is selected.
+  // Scoped diagrams: one file's neighborhood, one folder, or the whole repo.
+  const showFileDiagram = useCallback((id: string) => {
+    setScope({ kind: 'file', id });
+    setSelectedId(null);
+  }, []);
+  const showFolderDiagram = useCallback((path: string) => {
+    setScope({ kind: 'folder', path });
+    setSelectedId(null);
+  }, []);
+
+  // Recompute the (deterministic, proficiency-adapted) narration whenever the selection changes.
   useEffect(() => {
     setTab('info');
-    setNarration(null);
     try { window.speechSynthesis?.cancel(); } catch { /* noop */ }
-  }, [selectedId]);
+    if (selectedId && graph) setNarration(narrateFile(selectedId, graph, proficiency));
+    else setNarration(null);
+  }, [selectedId, graph, proficiency]);
 
   const listenToFile = useCallback((id: string) => {
     if (!graph) return;
-    const n = narrateFile(id, graph);
+    const n = narrateFile(id, graph, proficiency);
     setNarration(n);
     setTab('info');
     speak(`${n.purpose} ${n.impact}`);
-  }, [graph]);
+  }, [graph, proficiency]);
 
   // Camera-only: fly to a node without opening the detail view.
   const focusNode = useCallback((id: string) => {
@@ -243,6 +298,46 @@ export default function App() {
     },
     [graph],
   );
+
+  // Palette actions: "diagram", "architecture", "blast radius"…
+  const paletteCommands = useMemo<PaletteCommand[]>(() => {
+    const cmds: PaletteCommand[] = [
+      {
+        id: 'repo-diagram',
+        label: 'Diagram: whole repo',
+        sub: 'architecture overview',
+        keywords: 'diagram graph architecture repo overview whole map',
+        run: () => setScope({ kind: 'repo' }),
+      },
+    ];
+    if (selectedId) {
+      const dir = selectedId.split('/').slice(0, -1).join('/');
+      cmds.push({
+        id: 'file-diagram',
+        label: `Diagram: ${shortName(selectedId)}`,
+        sub: 'this file and its connections',
+        keywords: 'diagram graph file connections',
+        run: () => showFileDiagram(selectedId),
+      });
+      if (dir) {
+        cmds.push({
+          id: 'folder-diagram',
+          label: `Diagram: ${dir}/`,
+          sub: 'whole folder',
+          keywords: 'diagram graph folder directory',
+          run: () => showFolderDiagram(dir),
+        });
+      }
+      cmds.push({
+        id: 'blast',
+        label: `Blast radius: ${shortName(selectedId)}`,
+        sub: 'what breaks if this changes',
+        keywords: 'blast radius impact break change',
+        run: () => startBlast(selectedId),
+      });
+    }
+    return cmds;
+  }, [selectedId, showFileDiagram, showFolderDiagram, startBlast]);
 
   // ⌘K / Ctrl+K opens the command palette anywhere.
   useEffect(() => {
@@ -291,7 +386,7 @@ export default function App() {
           // Voice explain = spoken purpose + impact, no API key needed.
           selectFile(id);
           if (graph) {
-            const n = narrateFile(id, graph);
+            const n = narrateFile(id, graph, proficiency);
             setNarration(n);
             setTab('info');
             setVoiceMsg(`${shortName(id)}: ${n.purpose}`);
@@ -309,7 +404,7 @@ export default function App() {
         speak(`I didn't catch that. ${msg}`);
       }
     },
-    [graph, selectedId, focusNode, selectFile],
+    [graph, selectedId, focusNode, selectFile, proficiency],
   );
 
   const toggleListen = useCallback(() => {
@@ -326,56 +421,6 @@ export default function App() {
       (msg) => { setListening(false); setVoiceMsg(msg); },
     );
   }, [listening, handleVoice]);
-
-  /* ---------------- guided tour ---------------- */
-  const startTour = useCallback(() => {
-    if (!graph) return;
-    const stops = [...graph.modules]
-      .filter((m) => !m.isTest && m.kind === 'code')
-      .sort(
-        (a, b) =>
-          (b.fanIn + b.fanOut + (b.isEntry ? 5 : 0)) - (a.fanIn + a.fanOut + (a.isEntry ? 5 : 0)),
-      )
-      .slice(0, 5)
-      .map((m) => m.id);
-    if (!stops.length) return;
-    setShowWelcome(false);
-    try { localStorage.setItem('codequest.welcomed', '1'); } catch { /* noop */ }
-    setSelectedId(null); // tour runs on the graph
-    setTour({ stops, idx: 0 });
-  }, [graph]);
-
-  const stopTour = useCallback(() => {
-    setTour(null);
-    try { window.speechSynthesis?.cancel(); } catch { /* noop */ }
-  }, []);
-
-  const tourNext = useCallback(() => {
-    setTour((t) => {
-      if (!t) return t;
-      if (t.idx >= t.stops.length - 1) {
-        try { window.speechSynthesis?.cancel(); } catch { /* noop */ }
-        return null;
-      }
-      return { stops: t.stops, idx: t.idx + 1 };
-    });
-  }, []);
-
-  // Each tour stop: fly to the file, show + speak its purpose and impact.
-  useEffect(() => {
-    if (!tour || !graph) return;
-    const id = tour.stops[tour.idx];
-    if (!id) { setTour(null); return; }
-    focusNode(id);
-    const n = narrateFile(id, graph);
-    setNarration(n);
-    setTab('info');
-    setVoiceMsg(`Tour ${tour.idx + 1} of ${tour.stops.length}: ${shortName(id)}`);
-    speak(`${n.purpose} ${n.impact}`, () => {
-      setTimeout(() => tourNext(), 1200);
-    });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tour]);
 
   /* ---------------- plain-language insights ---------------- */
   const insights = useMemo(() => {
@@ -537,6 +582,16 @@ export default function App() {
         <button className="palette-trigger" onClick={() => setPaletteOpen(true)} title="Search files, symbols, code">
           <span>🔍</span><span className="pt-text">Search…</span><kbd>⌘K</kbd>
         </button>
+        <select
+          className="prof-select"
+          value={proficiency}
+          onChange={(e) => pickProf(e.target.value as Proficiency)}
+          title="Your technical level — explanations adapt to it"
+        >
+          <option value="beginner">Not technical</option>
+          <option value="developer">Developer</option>
+          <option value="expert">Expert</option>
+        </select>
         {!serverMode && (
           <button className="ghost small" onClick={() => fileInput.current?.click()}>Load another</button>
         )}
@@ -567,7 +622,12 @@ export default function App() {
 
       <div className="main">
         <aside className="panel left explorer">
-          <FileTree graph={graph} selectedId={selectedId} onSelect={selectFile} />
+          <FileTree
+            graph={graph}
+            selectedId={selectedId}
+            onSelect={selectFile}
+            onFolderDiagram={showFolderDiagram}
+          />
           <details className="filters">
             <summary>Graph filters</summary>
             <section>
@@ -629,6 +689,7 @@ export default function App() {
             onBack={() => setSelectedId(null)}
             onListen={() => listenToFile(selected.id)}
             onBlast={() => startBlast(selected.id)}
+            onDiagram={() => showFileDiagram(selected.id)}
             onSelectFile={selectFile}
             downstream={downstream}
             upstream={upstream}
@@ -640,6 +701,60 @@ export default function App() {
           />
         ) : (
         <div className="canvas" onDrop={onDrop} onDragOver={(e) => e.preventDefault()}>
+          {/* Scope breadcrumb: repo → folder → file, with explicit zoom-out options */}
+          <div className="scope-bar">
+            <button
+              className={scope.kind === 'repo' ? 'on' : ''}
+              onClick={() => setScope({ kind: 'repo' })}
+              title="Whole repo diagram"
+            >
+              ⬢ Repo
+            </button>
+            {scope.kind === 'folder' && (
+              <>
+                {scope.path.split('/').map((seg, i, arr) => (
+                  <span key={i} className="scope-crumb">
+                    <span className="scope-sep">/</span>
+                    <button
+                      onClick={() => setScope({ kind: 'folder', path: arr.slice(0, i + 1).join('/') })}
+                    >
+                      {seg}
+                    </button>
+                  </span>
+                ))}
+                <span className="scope-count">{viewGraph?.modules.length} files</span>
+              </>
+            )}
+            {scope.kind === 'file' && (
+              <>
+                <span className="scope-sep">/</span>
+                <button
+                  title="Open this file"
+                  onClick={() => selectFile(scope.id)}
+                >
+                  📄 {shortName(scope.id)}
+                </button>
+                <button
+                  className="scope-cta"
+                  onClick={() => {
+                    const dir = scope.id.split('/').slice(0, -1).join('/');
+                    if (dir) setScope({ kind: 'folder', path: dir });
+                    else setScope({ kind: 'repo' });
+                  }}
+                  title="Zoom out to the whole folder"
+                >
+                  ⤴ Folder
+                </button>
+                <button
+                  className="scope-cta"
+                  onClick={() => setScope({ kind: 'repo' })}
+                  title="Zoom out to the whole repo"
+                >
+                  ⬢ Repo
+                </button>
+              </>
+            )}
+          </div>
           <ReactFlow
             nodes={nodes}
             edges={edges}
@@ -691,8 +806,7 @@ export default function App() {
               {insights.map((s, i) => (
                 <p key={i} className="insight">{s}</p>
               ))}
-              <button className="tour-cta" onClick={startTour}>▶ Take the guided tour</button>
-              <p className="hint-sub">Each box is a file. Lines show which files talk to which. Click any box to inspect it.</p>
+              <p className="hint-sub">Each box is a file. Lines show which files talk to which. Press <kbd>⌘K</kbd> to search everything.</p>
               {cycles.length > 0 && (
                 <div className="cycle-warn">
                   ⚠ {cycles.length} circular {cycles.length === 1 ? 'import' : 'imports'} detected
@@ -715,15 +829,8 @@ export default function App() {
           open={paletteOpen}
           onClose={() => setPaletteOpen(false)}
           onSelect={(id, line) => selectFile(id, line)}
+          commands={paletteCommands}
         />
-      )}
-      {tour && (
-        <div className="tour-bar">
-          <span className="tour-progress">Tour {tour.idx + 1} of {tour.stops.length}</span>
-          <span className="tour-file">{shortName(tour.stops[tour.idx])}</span>
-          <button className="ghost small" onClick={tourNext}>Next →</button>
-          <button className="ghost small" onClick={stopTour}>✕ Stop</button>
-        </div>
       )}
       {showWelcome && graph && (
         <div className="modal-backdrop">
@@ -732,16 +839,23 @@ export default function App() {
             <h2>This is a map of your codebase.</h2>
             <p className="modal-sub">
               Every box is a file. Lines show which files talk to which.
-              Bigger glowing boxes are the important ones. Click anything to inspect it —
-              read its code, hear what it does, see what would break if you changed it.
+              Click anything to inspect it — read its code, hear what it does, see what would break if you changed it.
             </p>
-            <div className="modal-actions welcome-actions">
-              <button className="tour-go" onClick={startTour}>▶ Take the guided tour</button>
-              <button className="ghost" onClick={() => {
-                setShowWelcome(false);
-                try { localStorage.setItem('codequest.welcomed', '1'); } catch { /* noop */ }
-              }}>Explore on my own</button>
+            <p className="prof-q">How technical are you? <span>Explanations adapt to your level.</span></p>
+            <div className="prof-cards">
+              <button onClick={() => pickProf('beginner')}>
+                <b>Not technical</b><span>Plain language, no jargon</span>
+              </button>
+              <button onClick={() => pickProf('developer')}>
+                <b>Developer</b><span>Standard terms, full detail</span>
+              </button>
+              <button onClick={() => pickProf('expert')}>
+                <b>Expert</b><span>Terse and technical</span>
+              </button>
             </div>
+            <button className="ghost prof-skip" onClick={() => pickProf(proficiency)}>
+              Skip — explore on my own
+            </button>
           </div>
         </div>
       )}
