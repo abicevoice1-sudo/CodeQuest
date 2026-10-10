@@ -857,8 +857,6 @@ export default function App() {
       {showSettings && (
         <SettingsModal
           serverMode={serverMode}
-          proficiency={proficiency}
-          setProficiency={pickProf}
           theme={theme}
           setTheme={pickTheme}
           onClose={() => setShowSettings(false)}

@@ -1,5 +1,8 @@
 # Changelog
 
+## 1.14.1 — 2026-10-10
+- Removed the duplicated proficiency picker from Settings (it lives in the topbar only now).
+
 ## 1.14.0 — 2026-10-10
 - Columns now explain themselves: every table column gets a "why it exists / what it does" line, proficiency-aware like file narration (business terms for non-technical, terse for seniors).
 - Settings unified: one ⚙ panel now holds Experience (proficiency picker), Appearance (5 themes), and AI explain — no more scattered controls.
