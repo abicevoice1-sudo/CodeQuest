@@ -85,9 +85,10 @@ function teacherWhy(from: string, to: string, names: string[], prof: Prof): stri
     : `${f} depends on ${t}.`;
 }
 
-function businessWhy(from: string, role: { capability: string; why: string }): string {
+function businessWhy(from: string, fromRole: { capability: string; why: string }, to: string, toRole: { capability: string; why: string }): string {
   const f = shortName(from);
-  return `${f} needs ${role.capability} — ${role.why}. That's the business reason they're connected.`;
+  const t = shortName(to);
+  return `${f} handles ${fromRole.capability}. It can't do that job without ${t}, which covers ${toRole.capability} — ${toRole.why}.`;
 }
 
 function businessStory(graph: CodeQuestGraph): { what: string; parts: { name: string; desc: string }[]; journey: string } {
@@ -107,19 +108,19 @@ function businessStory(graph: CodeQuestGraph): { what: string; parts: { name: st
   const parts: { name: string; desc: string }[] = [];
   if (has('ui', 'component', 'page', 'view')) {
     const c = count('ui', 'component', 'page', 'view');
-    parts.push({ name: '🖥️ What you see', desc: `The screens and buttons — ${c} piece${c === 1 ? '' : 's'} that make up the visible interface.` });
+    parts.push({ name: '🖥️ What Customers See', desc: `The screens and buttons — ${c} piece${c === 1 ? '' : 's'} that make up the visible interface.` });
   }
   if (has('api', 'route', 'controller', 'handler')) {
     const c = count('api', 'route', 'controller', 'handler');
-    parts.push({ name: '🚪 The front door', desc: `Where requests come in — ${c} entry point${c === 1 ? '' : 's'} that receive asks from users or other apps.` });
+    parts.push({ name: '🚪 Front Doors', desc: `Where requests come in — ${c} entry point${c === 1 ? '' : 's'} that receive asks from users or other apps.` });
   }
   if (has('service', 'domain', 'logic', 'core')) {
     const c = count('service', 'domain', 'logic', 'core');
-    parts.push({ name: '⚙️ The work', desc: `Where the actual job gets done — ${c} piece${c === 1 ? '' : 's'} of business logic that do the thinking.` });
+    parts.push({ name: '⚙️ The Work', desc: `Where the actual job gets done — ${c} piece${c === 1 ? '' : 's'} of business logic that do the thinking.` });
   }
   if (has('data', 'db', 'database', 'repo', 'store', 'model')) {
     const c = count('data', 'db', 'database', 'repo', 'store', 'model');
-    parts.push({ name: '🗄️ The memory', desc: `Where information is kept — ${c} piece${c === 1 ? '' : 's'} that read and write the app's records.` });
+    parts.push({ name: '🗄️ Business Memory', desc: `Where information is kept — ${c} piece${c === 1 ? '' : 's'} that read and write the app's records.` });
   }
   if (parts.length === 0) {
     parts.push({ name: '📦 The pieces', desc: `${graph.modules.filter((m) => m.kind === 'code').length} code files working together.` });
@@ -162,23 +163,61 @@ function ArchitectureTab({
   onOpenFile: (id: string) => void;
 }) {
   const byLayer = new Map<string, { id: string; fanIn: number }[]>();
+  const isFixture = (id: string) => /fixture|example|mock|__tests__|[/\\]test[/\\]|\.test\./i.test(id);
   for (const m of graph.modules) {
     if (m.kind !== 'code') continue;
+    if (prof === 'non-technical' && (m.isTest || isFixture(m.id))) continue;
     const l = m.layer || 'other';
     if (!byLayer.has(l)) byLayer.set(l, []);
     byLayer.get(l)!.push({ id: m.id, fanIn: m.fanIn });
   }
+  // Translate layer jargon → business departments.
+  const bizLayer = (l: string): string => {
+    const x = l.toLowerCase();
+    if (x.includes('entry')) return '🚪 Front Doors';
+    if (x.includes('ui') || x.includes('component') || x.includes('page') || x.includes('view')) return '🖥️ What Customers See';
+    if (x.includes('api') || x.includes('route') || x.includes('controller')) return '📬 Requests In';
+    if (x.includes('service') || x.includes('domain') || x.includes('logic') || x.includes('core')) return '⚙️ The Work';
+    if (x.includes('data') || x.includes('db') || x.includes('database') || x.includes('repo') || x.includes('model')) return '🗄️ Business Memory';
+    if (x.includes('infra') || x.includes('util') || x.includes('config')) return '🔧 Behind the Scenes';
+    if (x.includes('test')) return '🧪 Safety Checks';
+    return `📦 ${l}`;
+  };
+
   const layers = [...byLayer.entries()]
     .map(([name, mods]) => ({
       name,
+      bizName: prof === 'non-technical' ? bizLayer(name) : name,
       count: mods.length,
       top: mods.sort((a, b) => b.fanIn - a.fanIn).slice(0, 3),
+      mods,
     }))
     .sort((a, b) => layerRank(a.name) - layerRank(b.name));
 
+  // Business viewers: merge layers that map to the same department.
+  const displayLayers = prof === 'non-technical'
+    ? (() => {
+        const merged = new Map<string, { name: string; bizName: string; count: number; top: { id: string; fanIn: number }[]; rank: number }>();
+        for (const l of layers) {
+          const ex = merged.get(l.bizName);
+          if (ex) {
+            ex.count += l.count;
+            ex.top = [...ex.top, ...l.mods].sort((a, b) => b.fanIn - a.fanIn).slice(0, 3);
+            ex.rank = Math.min(ex.rank, layerRank(l.name));
+          } else {
+            merged.set(l.bizName, { name: l.name, bizName: l.bizName, count: l.count, top: l.top, rank: layerRank(l.name) });
+          }
+        }
+        return [...merged.values()].sort((a, b) => a.rank - b.rank);
+      })()
+    : layers;
+
   const pipe = graph.intel?.flow?.pipeline || [];
   const outOf = (l: string) => pipe.filter((p) => p.from === l).sort((a, b) => b.count - a.count).slice(0, 3);
-  const entries = graph.modules.filter((m) => m.isEntry && m.kind === 'code').slice(0, 6);
+  // Business viewers: hide test/fixture entry points — they confuse the story.
+  const entries = graph.modules
+    .filter((m) => m.isEntry && m.kind === 'code' && !m.isTest && !/fixture|example|mock|__tests__|test/i.test(m.id))
+    .slice(0, 6);
 
   return (
     <section>
@@ -200,13 +239,17 @@ function ArchitectureTab({
         </div>
       )}
       <div className="guide-arch">
-        {layers.map((l) => (
-          <div className="guide-arch-layer" key={l.name}>
+        {displayLayers
+          .filter((l) => prof !== 'non-technical' || !l.name.toLowerCase().includes('test'))
+          .map((l) => (
+          <div className="guide-arch-layer" key={l.bizName || l.name}>
             <div className="guide-arch-head">
-              <span className="guide-layer">{l.name}</span>
-              <span className="guide-count">{l.count} files</span>
+              <span className="guide-layer">{l.bizName || l.name}</span>
+              <span className="guide-count">
+                {prof === 'non-technical' ? `${l.count} piece${l.count === 1 ? '' : 's'}` : `${l.count} files`}
+              </span>
             </div>
-            {outOf(l.name).length > 0 && (
+            {prof !== 'non-technical' && outOf(l.name).length > 0 && (
               <div className="guide-arch-links">
                 {outOf(l.name).map((p, i) => (
                   <span key={i} className="guide-arch-link">
@@ -215,9 +258,20 @@ function ArchitectureTab({
                 ))}
               </div>
             )}
+            {prof === 'non-technical' && outOf(l.name).length > 0 && (() => {
+              const uniq = [...new Set(outOf(l.name).map((p) => bizLayer(p.to)))].filter((b) => b !== (l.bizName || l.name));
+              if (uniq.length === 0) return null;
+              return (
+                <div className="guide-arch-links">
+                  <span className="guide-arch-link biz">
+                    Works with {uniq.join(', ')}
+                  </span>
+                </div>
+              );
+            })()}
             <div className="guide-arch-top">
               {l.top.map((t) => (
-                <button key={t.id} className="guide-file" onClick={() => onOpenFile(t.id)} title={`${t.fanIn} importers`}>
+                <button key={t.id} className="guide-file" onClick={() => onOpenFile(t.id)} title={prof === 'non-technical' ? describeBusiness(t.id, graph).capability : `${t.fanIn} importers`}>
                   {shortName(t.id)}
                 </button>
               ))}
@@ -325,6 +379,35 @@ export default function RepoGuide({
     .filter((e) => (modById.get(e.to)?.fanIn || 0) > 0)
     .sort((a, b) => (modById.get(b.to)?.fanIn || 0) - (modById.get(a.to)?.fanIn || 0))
     .slice(0, 10);
+
+  // Business viewers: skip plumbing (types/utils/constants) — show connections
+  // between parts that actually do business work.
+  const PLUMBING_RE = /^(types?|utils?|constants?|helpers?|config|common)\./i;
+  const topBusinessLinks = [...graph.edges]
+    .filter((e) => {
+      const from = modById.get(e.from);
+      const to = modById.get(e.to);
+      if (!to || (to.fanIn || 0) === 0) return false;
+      if (PLUMBING_RE.test(shortName(e.to))) return false;
+      if (to.isTest || from?.isTest) return false;
+      if (/fixture|example|mock|__tests__/i.test(e.from) || /fixture|example|mock|__tests__/i.test(e.to)) return false;
+      return true;
+    })
+    .sort((a, b) => {
+      const ta = modById.get(a.to)!;
+      const tb = modById.get(b.to)!;
+      // Prefer service/domain/entry targets — the parts that do business work.
+      const score = (m: { layer?: string; isEntry?: boolean; fanIn?: number }) => {
+        const l = (m.layer || '').toLowerCase();
+        let s = m.fanIn || 0;
+        if (m.isEntry) s += 50;
+        if (l.includes('service') || l.includes('domain')) s += 30;
+        if (l.includes('api') || l.includes('route')) s += 15;
+        return s;
+      };
+      return score(tb) - score(ta);
+    })
+    .slice(0, 6);
 
   const copyAll = () => {
     const cmds = runbook.steps.filter((s) => !s.optional).map((s) => s.command).join('\n');
@@ -608,7 +691,7 @@ export default function RepoGuide({
                 <p className="guide-empty">No connections found.</p>
               )}
               <div className="guide-links">
-                {topLinks.map((e, i) => (
+                {(prof === 'non-technical' ? topBusinessLinks : topLinks).map((e, i) => (
                   <div className="guide-link" key={i}>
                     <div className="guide-link-files">
                       <button className="guide-file" onClick={() => onOpenFile(e.from)}>
@@ -621,7 +704,7 @@ export default function RepoGuide({
                     </div>
                     <p className="guide-link-why">
                       {prof === 'non-technical'
-                        ? businessWhy(e.from, describeBusiness(e.to, graph))
+                        ? businessWhy(e.from, describeBusiness(e.from, graph), e.to, describeBusiness(e.to, graph))
                         : teacherWhy(e.from, e.to, e.names || [], prof)}
                     </p>
                   </div>

@@ -1,5 +1,8 @@
 # Changelog
 
+## 1.14.3 — 2026-10-10
+- Business-person polish pass: Architecture tab now speaks in departments (Front Doors, What Customers See, The Work) with fixture/test files hidden and duplicate departments merged; Why-it-matters shows only real business connections with specific, non-repetitive explanations (verb-aware: scanning, exporting, commanding); fixed a crash when opening Architecture.
+
 ## 1.14.2 — 2026-10-10
 - Business flow tab rewritten for non-technical: the confusing layer-count pairs ("UI Component → 11 Service") are gone, replaced with plain-language "what this app is", "parts of the business" cards, and a follow-one-request journey. File action buttons (Listen/Diagram/Blast) now show their text labels on mobile — no more mystery icons.
 
