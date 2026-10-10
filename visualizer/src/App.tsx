@@ -383,7 +383,7 @@ export default function App() {
             colorMode="dark"
             proOptions={{ hideAttribution: true }}
           >
-            <Background variant={BackgroundVariant.Dots} gap={28} size={1.5} color="#1c1c21" bgColor="#0a0a0c" />
+            <Background variant={BackgroundVariant.Dots} gap={28} size={1.5} color="#26262e" bgColor="#0a0a0c" />
             <Controls showInteractive={false} />
             <MiniMap
               pannable

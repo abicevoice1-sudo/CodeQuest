@@ -155,7 +155,7 @@ button.small { padding: 7px 14px; font-size: 13px; border-radius: 8px; }
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   display: flex; align-items: center;
 }
-.cq-node-sub { display: flex; justify-content: space-between; margin-top: 4px; font-size: 11px; color: var(--text-faint); }
+.cq-node-sub { display: flex; justify-content: space-between; gap: 10px; margin-top: 5px; font-size: 11px; color: var(--text-faint); }
 .cq-layer { font-weight: 600; }
 .cq-fans { font-family: ui-monospace, monospace; }
 .cq-handle { width: 8px; height: 8px; background: #52525b; border: 2px solid var(--bg); }
