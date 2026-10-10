@@ -849,7 +849,7 @@ export default function App() {
       {showWelcome && graph && (
         <div className="modal-backdrop">
           <div className="modal welcome">
-            <div className="drop-logo">⬢</div>
+            <div className="drop-logo"><ApertureMark size={44} /></div>
             <h2>This is a map of your codebase.</h2>
             <p className="modal-sub">
               Every box is a file. Lines show which files talk to which.
