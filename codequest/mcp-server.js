@@ -64,6 +64,19 @@ const TOOLS = [
     },
     argv: (a) => ['story', a.entry, a.dir || '.'],
   },
+  {
+    name: 'codequest_diff',
+    description: 'Architecture drift between two scans (dirs or graph.json paths): added/removed modules and edges, risk escalations, new HIGH/CRITICAL modules, new circular imports. Use in CI to gate PRs.',
+    inputSchema: {
+      type: 'object',
+      required: ['old', 'new'],
+      properties: {
+        old: { type: 'string', description: 'Baseline: directory or graph.json path' },
+        new: { type: 'string', description: 'Current: directory or graph.json path' },
+      },
+    },
+    argv: (a) => ['diff', a.old, a.new],
+  },
 ];
 
 function runTool(name, args) {

@@ -2,7 +2,8 @@
 
 Copy this folder into any repository. It turns GitHub Copilot (agent mode) into **CodeQuest Core AI**:
 a repo-comprehension engine that maps codebases, computes blast radius, narrates execution flows,
-and simulates breaking changes — grounded in deterministic static analysis, not guesses.
+simulates breaking changes, and gates architecture drift in CI — grounded in deterministic static
+analysis, not guesses.
 
 ## 60-second quickstart
 
@@ -53,6 +54,7 @@ Copilot agent mode (/codequest-*)     # intelligence: summaries, narratives, jud
 ./codequest/bin/codequest blast-radius <file>   # impact matrix for a module
 ./codequest/bin/codequest story <entry-file>    # static execution trace from an entry point
 ./codequest/bin/codequest modules [dir]         # list modules + exports
+./codequest/bin/codequest diff <old> <new>      # architecture drift gate (CI: fails on new CRITICAL/cycles)
 ```
 
 Add `--json` to any command for machine-readable output.

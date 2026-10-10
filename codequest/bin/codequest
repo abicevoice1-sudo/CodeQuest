@@ -58,6 +58,7 @@ function parseJS(lines) {
   const imports = [], exports = [];
   const reImportFrom = /^\s*import\s+(?:[^'"]*?\s+from\s+)?['"]([^'"]+)['"]/;
   const reExportFrom = /^\s*export\s+(?:[^'"]*?\s+from\s+)['"]([^'"]+)['"]/;
+  const reExportStar = /^\s*export\s+\*\s*(?:as\s+[A-Za-z_$][\w$]*\s+)?from\s+['"]([^'"]+)['"]/;
   const reRequire = /(?:^|[^.\w$])require\s*\(\s*['"]([^'"]+)['"]\s*\)/;
   const reDynImport = /(?:^|[^.\w$])import\s*\(\s*['"]([^'"]+)['"]\s*\)/;
   const reExportDecl = /^\s*export\s+(?:default\s+)?(?:async\s+)?(?:function|class|const|let|var)\s+([A-Za-z_$][\w$]*)/;
@@ -66,8 +67,9 @@ function parseJS(lines) {
   lines.forEach((ln, i) => {
     const line = i + 1;
     let m;
-    if ((m = ln.match(reImportFrom))) imports.push({ raw: m[1], line });
-    else if ((m = ln.match(reExportFrom))) { imports.push({ raw: m[1], line }); }
+    if ((m = ln.match(reExportStar))) imports.push({ raw: m[1], line, reexport: true });
+    else if ((m = ln.match(reImportFrom))) imports.push({ raw: m[1], line });
+    else if ((m = ln.match(reExportFrom))) { imports.push({ raw: m[1], line, reexport: true }); }
     else if ((m = ln.match(reRequire))) imports.push({ raw: m[1], line });
     else if ((m = ln.match(reDynImport))) imports.push({ raw: m[1], line });
     if ((m = ln.match(reExportDecl))) exports.push(m[1]);
@@ -84,7 +86,7 @@ function parseJS(lines) {
 function parsePy(lines) {
   const imports = [], exports = [];
   const reImp = /^\s*import\s+([a-zA-Z_][\w.]*(?:\s*,\s*[a-zA-Z_][\w.]*)*)/;
-  const reFrom = /^\s*from\s+([a-zA-Z_][\w.]*)\s+import\s+(.+)/;
+  const reFrom = /^\s*from\s+(\.*[a-zA-Z_]?[\w.]*)\s+import\s+(.+)/;
   const reDef = /^\s*(?:def|class)\s+([A-Za-z_]\w*)/;
   lines.forEach((ln, i) => {
     const line = i + 1;
@@ -92,7 +94,8 @@ function parsePy(lines) {
     if ((m = ln.match(reImp))) {
       m[1].split(',').forEach(s => imports.push({ raw: s.trim().split(/\s+as\s+/)[0].trim(), line }));
     } else if ((m = ln.match(reFrom))) {
-      imports.push({ raw: m[1].trim(), line, names: m[2].trim() });
+      const raw = m[1].trim() || '.';
+      imports.push({ raw, line, names: m[2].trim(), relative: raw.startsWith('.') });
     } else if ((m = ln.match(reDef)) && !ln.startsWith(' ') && !ln.startsWith('\t')) {
       exports.push(m[1]);
     }
@@ -149,10 +152,40 @@ function tryFile(root, p) {
   return null;
 }
 
-function resolveImport(root, fromRel, raw, lang) {
+function resolveImport(root, fromRel, raw, lang, aliases, names) {
   if (raw.startsWith('.')) {
-    const base = path.normalize(path.join(path.dirname(fromRel), raw));
-    return tryFile(root, base);
+    // Relative import, incl. python explicit-relative (`from . import x`, `from ..pkg import y`).
+    const dots = raw.match(/^\.+/)[0].length;
+    const rest = raw.slice(dots).replace(/\./g, '/');
+    let base = path.dirname(fromRel);
+    for (let i = 1; i < dots; i++) base = path.dirname(base); // 1 dot = same dir
+    if (rest) {
+      const hit = tryFile(root, path.join(base, rest));
+      // Unresolved relative imports are reported honestly (null) — never
+      // guessed. (Falling back to the directory index here would mask broken
+      // imports and fabricate cycles.)
+      return hit || null;
+    }
+    if (lang === 'python') {
+      if (names) {
+        // `from . import x` → sibling module x
+        const first = names.split(',')[0].trim().split(/\s+/)[0];
+        if (/^[A-Za-z_]\w*$/.test(first)) {
+          const hit = tryFile(root, path.join(base, first));
+          if (hit) return hit;
+        }
+      }
+      return tryFile(root, path.join(base, '__init__')); // package init fallback
+    }
+    return null;
+  }
+  if ((lang === 'javascript' || lang === 'typescript') && aliases) {
+    for (const { prefix, target } of aliases) {
+      if (raw === prefix || raw.startsWith(prefix + '/')) {
+        const hit = tryFile(root, path.join(target, raw.slice(prefix.length)));
+        if (hit) return hit;
+      }
+    }
   }
   if (lang === 'python' && /^[a-zA-Z_][\w.]*$/.test(raw)) {
     // absolute python import: try foo/bar.py, foo/bar/__init__.py (from root,
@@ -162,6 +195,28 @@ function resolveImport(root, fromRel, raw, lang) {
       tryFile(root, path.join(path.dirname(fromRel), base));
   }
   return null; // external / bare import
+}
+
+function loadAliases(root) {
+  // tsconfig.json / jsconfig.json `paths` (e.g. "@/*": ["src/*"]) for JS/TS.
+  const aliases = [];
+  for (const name of ['tsconfig.json', 'jsconfig.json']) {
+    const p = path.join(root, name);
+    if (!fs.existsSync(p)) continue;
+    try {
+      const text = fs.readFileSync(p, 'utf8')
+        .replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/.*$/gm, '$1');
+      const cfg = JSON.parse(text);
+      const baseUrl = (cfg.compilerOptions && cfg.compilerOptions.baseUrl) || '.';
+      const paths = (cfg.compilerOptions && cfg.compilerOptions.paths) || {};
+      for (const [key, vals] of Object.entries(paths)) {
+        const prefix = key.replace(/\/\*$/, '');
+        const target = (vals[0] || '').replace(/\/\*$/, '');
+        if (prefix) aliases.push({ prefix, target: path.normalize(path.join(baseUrl, target)) });
+      }
+    } catch { /* malformed config — ignore */ }
+  }
+  return aliases;
 }
 
 // ----------------------------------------------------------------- graph ---
@@ -203,6 +258,7 @@ function detectEntry(content, lang) {
 
 function buildGraph(root) {
   const files = walk(root, root);
+  const aliases = loadAliases(root);
   const modules = new Map();
   for (const rel of files) {
     const ext = path.extname(rel).toLowerCase();
@@ -219,8 +275,8 @@ function buildGraph(root) {
       exports, isTest: test, isEntry: entry,
       layer: guessLayer(rel, entry, test),
       imports: imports.map(im => ({
-        raw: im.raw, line: im.line,
-        resolved: resolveImport(root, rel, im.raw, lang),
+        raw: im.raw, line: im.line, reexport: !!im.reexport,
+        resolved: resolveImport(root, rel, im.raw, lang, aliases, im.names),
       })),
       fanIn: 0, fanOut: 0,
     });
@@ -245,13 +301,104 @@ function buildGraph(root) {
     else if (m.fanIn >= 2) risk = 'MEDIUM';
     m.risk = m.isTest ? 'LOW' : risk;
   }
+  const cycles = findCycles([...modules.keys()], edges);
   return {
     version: VERSION, root: path.resolve(root), generatedAt: new Date().toISOString(),
-    modules: [...modules.values()], edges,
+    modules: [...modules.values()], edges, cycles,
   };
 }
 
+function findCycles(nodeIds, edges) {
+  const adj = new Map(nodeIds.map(id => [id, []]));
+  for (const e of edges) adj.get(e.from).push(e.to);
+  const cycles = [];
+  const visited = new Set(), onStack = new Set(), stack = [];
+  const canon = (cyc) => {
+    const inner = cyc.slice(0, -1);
+    const min = inner.reduce((a, b) => (a < b ? a : b));
+    const i = inner.indexOf(min);
+    return [...inner.slice(i), ...inner.slice(0, i), min].join('>');
+  };
+  const seen = new Set();
+  function dfs(n) {
+    visited.add(n); onStack.add(n); stack.push(n);
+    for (const t of adj.get(n) || []) {
+      if (!visited.has(t)) dfs(t);
+      else if (onStack.has(t)) {
+        const cyc = [...stack.slice(stack.indexOf(t)), t];
+        const key = canon(cyc);
+        if (!seen.has(key)) { seen.add(key); cycles.push(cyc); }
+      }
+    }
+    stack.pop(); onStack.delete(n);
+  }
+  for (const id of nodeIds) if (!visited.has(id)) dfs(id);
+  return cycles.slice(0, 20);
+}
+
 // --------------------------------------------------------------- commands ---
+
+const RISK_RANK = { LOW: 0, MEDIUM: 1, HIGH: 2, CRITICAL: 3 };
+
+function loadGraphInput(input) {
+  // Accepts a directory (uses .codequest/graph.json) or a graph.json path.
+  const p = fs.existsSync(input) && fs.statSync(input).isDirectory()
+    ? path.join(input, '.codequest', 'graph.json') : input;
+  if (!fs.existsSync(p)) {
+    console.error(`codequest: no graph found at ${p} — run \`codequest scan\` first.`);
+    process.exit(1);
+  }
+  return JSON.parse(fs.readFileSync(p, 'utf8'));
+}
+
+function cmdDiff(oldInput, newInput, asJson, failOn) {
+  const og = loadGraphInput(oldInput), ng = loadGraphInput(newInput);
+  const om = new Map(og.modules.map(m => [m.id, m]));
+  const nm = new Map(ng.modules.map(m => [m.id, m]));
+  const addedModules = ng.modules.filter(m => !om.has(m.id)).map(m => m.id);
+  const removedModules = og.modules.filter(m => !nm.has(m.id)).map(m => m.id);
+  const ekey = (e) => `${e.from}→${e.to}`;
+  const oe = new Set(og.edges.map(ekey)), ne = new Set(ng.edges.map(ekey));
+  const addedEdges = ng.edges.filter(e => !oe.has(ekey(e)));
+  const removedEdges = og.edges.filter(e => !ne.has(ekey(e)));
+  const escalations = ng.modules
+    .filter(m => om.has(m.id) && RISK_RANK[m.risk] > RISK_RANK[om.get(m.id).risk])
+    .map(m => ({ module: m.id, from: om.get(m.id).risk, to: m.risk }));
+  const newCritical = ng.modules
+    .filter(m => !om.has(m.id) && RISK_RANK[m.risk] >= RISK_RANK.HIGH)
+    .map(m => ({ module: m.id, risk: m.risk, fanIn: m.fanIn }));
+  const oldCyc = new Set((og.cycles || []).map(c => c.join('>')));
+  const newCycles = (ng.cycles || []).filter(c => !oldCyc.has(c.join('>')));
+  const newEntries = ng.modules.filter(m => m.isEntry && !(om.has(m.id) && om.get(m.id).isEntry)).map(m => m.id);
+
+  const failures = [];
+  if (failOn.includes('critical') && (newCritical.length || escalations.some(e => e.to === 'CRITICAL')))
+    failures.push('new/escalated CRITICAL-risk modules');
+  if (failOn.includes('cycles') && newCycles.length) failures.push('new circular imports');
+  if (failOn.includes('escalations') && escalations.length) failures.push('risk escalations');
+
+  const result = { addedModules, removedModules, addedEdges, removedEdges,
+    escalations, newCritical, newCycles, newEntries, failures };
+  if (asJson) { out(JSON.stringify(result, null, 2)); }
+  else {
+    const L = ['# CodeQuest architecture drift'];
+    const sec = (t, items, fmt) => {
+      L.push('', `## ${t} (${items.length})`);
+      L.push(items.length ? items.slice(0, 20).map(fmt).join('\n') : '- none');
+    };
+    sec('Added modules', addedModules, (m) => `- ${m}`);
+    sec('Removed modules', removedModules, (m) => `- ${m}`);
+    sec('Added edges', addedEdges, (e) => `- ${e.from}:${e.line} → ${e.to}`);
+    sec('Removed edges', removedEdges, (e) => `- ${e.from} → ${e.to}`);
+    sec('Risk escalations', escalations, (e) => `- ${e.module}: ${e.from} → [${e.to} RISK]`);
+    sec('New HIGH/CRITICAL modules', newCritical, (m) => `- ${m.module} [${m.risk} RISK] (fan-in ${m.fanIn})`);
+    sec('New circular imports', newCycles, (c) => `- ${c.join(' → ')}`);
+    sec('New entry points', newEntries, (m) => `- ${m}`);
+    L.push('', failures.length ? `RESULT: FAIL — ${failures.join('; ')}` : 'RESULT: PASS — no blocking drift');
+    out(L.join('\n'));
+  }
+  if (failures.length) process.exitCode = 1;
+}
 
 function dependentsOf(g, id, maxDepth) {
   const byTarget = new Map();
@@ -373,6 +520,10 @@ function repoMapMd(g) {
   L.push('| Module | Lang | Layer | Exports | In/Out | Risk |');
   L.push('|---|---|---|---|---|---|');
   g.modules.forEach(m => L.push(`| ${m.id} | ${m.lang} | ${m.layer} | ${m.exports.length} | ${m.fanIn}/${m.fanOut} | ${riskTag(m.risk)} |`));
+  if (g.cycles && g.cycles.length) {
+    L.push('', `## Circular imports (${g.cycles.length})`);
+    g.cycles.forEach(c => L.push(`- ${c.join(' → ')}`));
+  }
   return L.join('\n');
 }
 
@@ -388,7 +539,9 @@ function out(s) { console.log(s); }
 function main() {
   const rawArgs = process.argv.slice(2);
   const asJson = rawArgs.includes('--json');
-  const args = rawArgs.filter(a => a !== '--json');
+  const failOnArg = rawArgs.find(a => a.startsWith('--fail-on'));
+  const failOn = failOnArg ? failOnArg.split('=')[1].split(',') : ['critical', 'cycles'];
+  const args = rawArgs.filter(a => a !== '--json' && !a.startsWith('--fail-on'));
   const cmd = args[0];
 
   if (!cmd || cmd === '--help' || cmd === '-h' || cmd === 'help') {
@@ -400,8 +553,10 @@ function main() {
       '  modules [dir]            list modules + exports',
       '  blast-radius <file> [dir]',
       '  story <entry-file> [dir]',
+      '  diff <old> <new>            architecture drift: old/new are dirs or graph.json paths',
       '',
       'Add --json for machine-readable output.',
+      'diff honors --fail-on <list>: comma list of critical,cycles,escalations (default: critical,cycles).',
     ].join('\n'));
   }
 
@@ -447,6 +602,10 @@ function main() {
   if (cmd === 'story') {
     if (!args[1]) return fail('usage: codequest story <entry-file> [dir]', asJson);
     return cmdStory(loadGraph(dirOf(2)), args[1], asJson);
+  }
+  if (cmd === 'diff') {
+    if (!args[1] || !args[2]) return fail('usage: codequest diff <old> <new>  (dirs or graph.json paths)', asJson);
+    return cmdDiff(args[1], args[2], asJson, failOn);
   }
   return fail(`unknown command "${cmd}" — try --help`, asJson);
 }

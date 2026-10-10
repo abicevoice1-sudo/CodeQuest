@@ -1,9 +1,8 @@
 # CodeQuest
 
-**Explore any codebase like an adventure.** A drop-in folder that turns GitHub Copilot into
-CodeQuest Core AI — a repo-comprehension engine for architecture maps, blast-radius analysis,
-execution walkthroughs, and breaking-change simulations. Deterministic static analysis underneath,
-Copilot intelligence on top, everything saved as Markdown in your repo. Fully offline.
+**Drop-in repo intelligence for GitHub Copilot.** A computed module graph, blast-radius
+analysis, story traces, and CI drift gates — wired to any API via MCP. Your code never
+leaves your machine.
 
 ## The 60-second version
 
@@ -90,6 +89,7 @@ Copilot agent mode (/codequest-*)     # intelligence: summaries, narratives, jud
 ./codequest/bin/codequest modules [dir]         # list modules + exports
 ./codequest/bin/codequest blast-radius <file>   # upstream, downstream by degree, risk, affected tests
 ./codequest/bin/codequest story <entry-file>    # static execution trace from an entry point
+./codequest/bin/codequest diff <old> <new>      # architecture drift gate for CI (fails on new CRITICAL/cycles)
 # add --json to any command for machine-readable output
 ```
 
@@ -102,7 +102,10 @@ and see `examples/outputs/` for what the analyzer produces.
 
 - `codequest/CODEQUEST.md` — master system prompt (start here to understand the AI's contract)
 - `codequest/README.md` — drop-in quickstart for any repo
-- `docs/PITCH.md` — startup pitch & product strategy memo
+- `docs/PITCH.md` — pitch memo (v2: wedge, buyer, ROI, honest moat)
+- `docs/MCP.md` — wire any API via MCP
+- `docs/PARSER.md` — parser capabilities & honest limits
+- `docs/ADOPTION.md` — the 10-team trial playbook
 
 ## Privacy
 
