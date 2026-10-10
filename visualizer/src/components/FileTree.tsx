@@ -37,16 +37,30 @@ function buildTree(modules: GraphModule[]): TreeNode {
   return root;
 }
 
-function fileIcon(name: string): string {
+function fileBadge(name: string): string {
   const ext = name.split('.').pop()?.toLowerCase() ?? '';
-  if (['js', 'jsx', 'mjs', 'cjs'].includes(ext)) return '🟨';
-  if (['ts', 'tsx', 'mts'].includes(ext)) return '🔷';
-  if (ext === 'py') return '🐍';
-  if (ext === 'json') return '🟫';
-  if (ext === 'md') return '📝';
-  if (['css', 'scss', 'less'].includes(ext)) return '🎨';
-  if (ext === 'html') return '🌐';
-  return '📄';
+  const map: Record<string, string> = {
+    js: 'JS', jsx: 'JS', mjs: 'JS', cjs: 'JS',
+    ts: 'TS', tsx: 'TS', mts: 'TS',
+    py: 'PY', go: 'GO', java: 'JV', rb: 'RB', php: 'PHP',
+    json: '{}', yaml: 'YM', yml: 'YM', toml: 'TM',
+    md: 'MD', mdx: 'MD', css: 'CSS', scss: 'CSS', html: 'HTML',
+    sql: 'SQL', prisma: 'PR',
+  };
+  return map[ext] || '··';
+}
+
+function fileBadgeClass(name: string): string {
+  const ext = name.split('.').pop()?.toLowerCase() ?? '';
+  if (['ts', 'tsx', 'mts'].includes(ext)) return 'b-ts';
+  if (['js', 'jsx', 'mjs', 'cjs'].includes(ext)) return 'b-js';
+  if (ext === 'py') return 'b-py';
+  if (ext === 'go') return 'b-go';
+  if (['json', 'yaml', 'yml', 'toml'].includes(ext)) return 'b-cfg';
+  if (['md', 'mdx'].includes(ext)) return 'b-doc';
+  if (['css', 'scss', 'html'].includes(ext)) return 'b-web';
+  if (['sql', 'prisma'].includes(ext)) return 'b-db';
+  return 'b-misc';
 }
 
 function TreeRow({
@@ -75,9 +89,10 @@ function TreeRow({
           style={{ paddingLeft: 8 + depth * 14 }}
           onClick={() => onToggle(node.path)}
         >
+          <span className="ft-guide" style={{ left: 8 + depth * 14 - 7 }} />
           <span className="ft-caret">{open ? '▾' : '▸'}</span>
-          <span className="ft-icon">{open ? '📂' : '📁'}</span>
-          <span className="ft-name">{node.name || '/'}</span>
+          <span className="ft-folder" />
+          <span className="ft-name ft-dirname">{node.name || '/'}</span>
           <span
             className="ft-diagram"
             title="View this folder as a diagram"
@@ -112,8 +127,9 @@ function TreeRow({
       onClick={() => onSelect(m.id)}
       title={m.id}
     >
+      <span className="ft-guide" style={{ left: 8 + depth * 14 - 7 }} />
       <span className="ft-caret" />
-      <span className="ft-icon">{fileIcon(node.name)}</span>
+      <span className={`ft-badge ${fileBadgeClass(node.name)}`}>{fileBadge(node.name)}</span>
       <span className="ft-name">{node.name}</span>
       {m.isEntry && <span className="ft-entry" title="Entry point">⚡</span>}
       {(m.risk === 'CRITICAL' || m.risk === 'HIGH') && (

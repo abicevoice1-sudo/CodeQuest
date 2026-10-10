@@ -48,10 +48,48 @@ test('runbook: port detected from PORT fallback', () => {
   assert.equal(g.intel.runbook.port, 3000);
 });
 
-test('runbook: README quickstart extracted', () => {
+test('runbook: README commands are preferred with source=readme', () => {
   const g = build();
-  assert.ok(g.intel.runbook.quickstart, 'quickstart found');
-  assert.match(g.intel.runbook.quickstart.heading, /getting started/i);
+  const fromReadme = g.intel.runbook.steps.filter((s) => s.source === 'readme');
+  assert.ok(fromReadme.length > 0, 'has README-sourced steps');
+  assert.ok(fromReadme.some((s) => s.command === 'npm install'), 'npm install from README');
+});
+
+test('runbook: python gets venv steps even when README covers install', () => {
+  const dir = tmp();
+  fs.writeFileSync(path.join(dir, 'requirements.txt'), 'flask==3.0.0\n');
+  fs.writeFileSync(path.join(dir, 'app.py'), 'from flask import Flask\n');
+  fs.writeFileSync(path.join(dir, 'README.md'), '# X\n## Usage\n```bash\npip install -r requirements.txt\npython app.py\n```\n');
+  const { buildGraph } = require('../lib/scan');
+  const g = buildGraph(dir, null);
+  const cmds = g.intel.runbook.steps.map((s) => s.command);
+  assert.equal(cmds[0], 'python -m venv venv');
+  assert.equal(cmds[1], 'source venv/bin/activate');
+  assert.ok(cmds.includes('pip install -r requirements.txt'));
+  assert.ok(cmds.includes('python app.py'));
+});
+
+test('fuzzyMatchEnv: finds DB vars by exact, keyword, and fuzzy matching', () => {
+  const { fuzzyMatchEnv } = require('../lib/intel');
+  const env = 'DATABASE_URL=postgres://u:p@h/db\nWEIRD_PG_HOST=db.internal\nMONGO_CONNECTION=mongodb://x\nDEBUG=true\n';
+  const keys = fuzzyMatchEnv(env, 'db').map((m) => m.key);
+  assert.ok(keys.includes('DATABASE_URL'), 'exact pattern');
+  assert.ok(keys.includes('MONGO_CONNECTION'), 'keyword');
+  assert.ok(keys.includes('WEIRD_PG_HOST'), 'fuzzy abbreviation');
+  assert.ok(!keys.includes('DEBUG'), 'non-db excluded');
+  // values are masked, raw value present but callers must not display it
+  const m = fuzzyMatchEnv(env, 'db').find((x) => x.key === 'DATABASE_URL');
+  assert.ok(m.masked.includes('\u2022'), 'masked');
+  assert.ok(!m.masked.includes('postgres://u:p@h/db'), 'raw not in masked');
+});
+
+test('fuzzyMatchEnv: finds AI keys', () => {
+  const { fuzzyMatchEnv } = require('../lib/intel');
+  const env = 'OPENAI_API_KEY=sk-abc\nMY_LLM_TOKEN=xyz\nDEBUG=true\n';
+  const keys = fuzzyMatchEnv(env, 'ai').map((m) => m.key);
+  assert.ok(keys.includes('OPENAI_API_KEY'));
+  assert.ok(keys.includes('MY_LLM_TOKEN'));
+  assert.ok(!keys.includes('DEBUG'));
 });
 
 // ------------------------------------------------------------ database ---

@@ -7,6 +7,7 @@ const http = require('http');
 const { exec } = require('child_process');
 const { out, fail } = require('./util');
 const { buildGraph, runTreeSitterExtract } = require('./scan');
+const { fuzzyMatchEnv } = require('./intel');
 
 const MIME = {
   '.html': 'text/html; charset=utf-8',
@@ -56,6 +57,42 @@ function cmdVisualize(dir, packRoot, flags) {
       res.writeHead(200, { 'Content-Type': MIME['.html'] });
       return res.end(html);
     }
+    // Scan the repo's .env files for DB / AI credentials (fuzzy match).
+    // Permission-gated in the UI: this endpoint only runs when the user clicks "Import from .env".
+    // Returns masked values only — secrets never leave the server.
+    if (urlPath === '/api/env-scan') {
+      const kind = new URL(req.url || '/', 'http://x').searchParams.get('kind') === 'ai' ? 'ai' : 'db';
+      const root = path.resolve(dir);
+      let text = '';
+      for (const f of ['.env', '.env.local']) {
+        try { text += '\n' + fs.readFileSync(path.join(root, f), 'utf8'); } catch { /* missing — fine */ }
+      }
+      const matches = fuzzyMatchEnv(text, kind).map(({ key, score, masked }) => ({ key, score, masked }));
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({ matches }));
+    }
+    // Introspect a live database and return its real tables + columns.
+    // Body: { connectionString }. The secret stays server-side; only the schema is returned.
+    if (urlPath === '/api/db-schema' && req.method === 'POST') {
+      let body = '';
+      req.on('data', (c) => { body += c; if (body.length > 4096) req.destroy(); });
+      req.on('end', async () => {
+        try {
+          const { connectionString } = JSON.parse(body || '{}');
+          if (!connectionString || typeof connectionString !== 'string') {
+            res.writeHead(400, { 'Content-Type': 'application/json' });
+            return res.end(JSON.stringify({ error: 'missing connection string' }));
+          }
+          const schema = await introspectDb(connectionString);
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          return res.end(JSON.stringify(schema));
+        } catch (e) {
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          return res.end(JSON.stringify({ error: String((e && e.message) || e).slice(0, 300) }));
+        }
+      });
+      return;
+    }
     // Read any file in the repo (for the in-UI code viewer). Traversal-safe.
     if (urlPath === '/api/file') {
       const rel = new URL(req.url || '/', 'http://x').searchParams.get('path') || '';
@@ -103,6 +140,92 @@ function buildPage(visDir, graph) {
   const safe = JSON.stringify(graph).replace(/</g, '\\u003c');
   return fs.readFileSync(path.join(visDir, 'index.html'), 'utf8')
     .replace('</head>', `<script>window.__CODEQUEST_GRAPH__=${safe};</script>\n</head>`);
+}
+
+/** Connect to a live database and return its real tables + columns.
+ *  Drivers are loaded dynamically; a missing driver yields a helpful install hint. */
+async function introspectDb(connectionString) {
+  const cs = connectionString.trim();
+  const need = (mod, install) => {
+    try { return require(mod); }
+    catch {
+      const e = new Error(`driver-missing:${mod}`);
+      e.installHint = install;
+      throw e;
+    }
+  };
+  const tables = [];
+  const pushTable = (name, columns) => {
+    if (tables.length < 100) tables.push({ name, columns: columns.slice(0, 200), live: true });
+  };
+
+  if (/^postgres(ql)?:\/\//i.test(cs)) {
+    const { Client } = need('pg', 'npm i pg');
+    const client = new Client({ connectionString: cs, connectionTimeoutMillis: 8000 });
+    await client.connect();
+    try {
+      const t = await client.query(
+        `SELECT table_name FROM information_schema.tables WHERE table_schema NOT IN ('pg_catalog','information_schema') ORDER BY table_name LIMIT 100`
+      );
+      for (const r of t.rows) {
+        const c = await client.query(
+          `SELECT column_name, data_type FROM information_schema.columns WHERE table_name = $1 ORDER BY ordinal_position`,
+          [r.table_name]
+        );
+        pushTable(r.table_name, c.rows.map((x) => ({ name: x.column_name, type: x.data_type })));
+      }
+    } finally { await client.end(); }
+    return { engine: 'PostgreSQL', tables };
+  }
+  if (/^mysql:\/\//i.test(cs)) {
+    const mysql = need('mysql2/promise', 'npm i mysql2');
+    const conn = await mysql.createConnection(cs);
+    try {
+      const [t] = await conn.query(
+        `SELECT table_name FROM information_schema.tables WHERE table_schema = DATABASE() ORDER BY table_name LIMIT 100`
+      );
+      for (const r of t) {
+        const [c] = await conn.query(
+          `SELECT column_name, data_type FROM information_schema.columns WHERE table_name = ? ORDER BY ordinal_position`,
+          [r.TABLE_NAME || r.table_name]
+        );
+        pushTable(r.TABLE_NAME || r.table_name, c.map((x) => ({ name: x.COLUMN_NAME || x.column_name, type: x.DATA_TYPE || x.data_type })));
+      }
+    } finally { await conn.end(); }
+    return { engine: 'MySQL', tables };
+  }
+  if (/^mongodb(\+srv)?:\/\//i.test(cs)) {
+    const { MongoClient } = need('mongodb', 'npm i mongodb');
+    const client = new MongoClient(cs, { serverSelectionTimeoutMS: 8000 });
+    await client.connect();
+    try {
+      const db = client.db();
+      const cols = await db.listCollections().toArray();
+      for (const col of cols.slice(0, 100)) {
+        const sample = await db.collection(col.name).findOne();
+        const columns = sample
+          ? Object.keys(sample).filter((k) => k !== '_id').slice(0, 200).map((k) => ({ name: k, type: typeof sample[k] }))
+          : [];
+        pushTable(col.name, columns);
+      }
+    } finally { await client.close(); }
+    return { engine: 'MongoDB', tables };
+  }
+  // sqlite: a file path (optionally prefixed with sqlite:)
+  const sqlitePath = cs.replace(/^sqlite:/i, '');
+  if (/\.db$|\.sqlite3?$|\.sqlite$/i.test(sqlitePath) || /^sqlite:/i.test(cs)) {
+    const Database = need('better-sqlite3', 'npm i better-sqlite3');
+    const db = new Database(sqlitePath, { readonly: true });
+    try {
+      const t = db.prepare(`SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name LIMIT 100`).all();
+      for (const r of t) {
+        const c = db.prepare(`PRAGMA table_info("${r.name.replace(/"/g, '""')}")`).all();
+        pushTable(r.name, c.map((x) => ({ name: x.name, type: x.type })));
+      }
+    } finally { db.close(); }
+    return { engine: 'SQLite', tables };
+  }
+  throw new Error('unsupported connection string — use postgres://, mysql://, mongodb://, or a .db/.sqlite file path');
 }
 
 const VIS_PORT = 1337;

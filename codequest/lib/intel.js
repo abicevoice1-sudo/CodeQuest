@@ -31,6 +31,98 @@ function listFiles(root, rel) {
 }
 
 /* ------------------------------------------------------------------ */
+/* Fuzzy .env matching — find DB / AI credentials without exact names   */
+/* ------------------------------------------------------------------ */
+
+/** Parse KEY=value lines (handles `export`, quotes, comments). Values kept server-side only. */
+function parseEnv(text) {
+  const vars = [];
+  for (let ln of text.split('\n')) {
+    ln = ln.trim();
+    if (!ln || ln.startsWith('#')) continue;
+    ln = ln.replace(/^export\s+/, '');
+    const m = ln.match(/^([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)$/);
+    if (!m) continue;
+    let val = m[2].trim();
+    // strip inline comments not inside quotes
+    const q = val[0];
+    if (q === '"' || q === "'") {
+      const end = val.indexOf(q, 1);
+      val = end > 0 ? val.slice(1, end) : val.slice(1);
+    } else {
+      val = val.split(/\s+#/)[0].trim();
+    }
+    vars.push({ key: m[1], value: val });
+  }
+  return vars;
+}
+
+function maskSecret(val) {
+  if (!val) return '(empty)';
+  if (val.length <= 8) return '\u2022'.repeat(Math.min(val.length, 8));
+  return val.slice(0, 2) + '\u2022'.repeat(6) + val.slice(-2);
+}
+
+// [regex, score] — exact-ish patterns first, loose keyword hits later.
+const ENV_DB_PATTERNS = [
+  [/database[_-]?url$/i, 100], [/^database[_-]?url/i, 100],
+  [/db[_-]?url$/i, 95],
+  [/^postgres(ql)?[_-]?url/i, 95], [/^mysql[_-]?url/i, 95], [/^mongo(db)?[_-]?url/i, 95],
+  [/^mongodb[_-]?uri/i, 95], [/^redis[_-]?url/i, 90],
+  [/^(postgres|mysql|mongo|redis)[_-]/i, 75],
+  [/db[_-]?host/i, 70], [/database[_-]?host/i, 70],
+  [/db[_-]?name/i, 65], [/database[_-]?name/i, 65],
+  [/db[_-]?user/i, 60], [/db[_-]?pass(word)?/i, 60],
+  [/^(pg|mysql|mongo)[_-]/i, 55],
+  [/(postgres|mysql|mongodb|redis|sqlite)/i, 45],
+  [/^db[_-]/i, 40], [/^database[_-]/i, 40],
+];
+
+const ENV_AI_PATTERNS = [
+  [/openai[_-]?api[_-]?key/i, 100], [/anthropic[_-]?api[_-]?key/i, 100],
+  [/^llm[_-]?api[_-]?key/i, 90], [/^ai[_-]?api[_-]?key/i, 90],
+  [/openai[_-]?base[_-]?url|openai[_-]?api[_-]?base/i, 85],
+  [/anthropic[_-]?base[_-]?url/i, 85],
+  [/api[_-]?key$/i, 50], [/^api[_-]?key/i, 50],
+  [/(openai|anthropic|llm|gpt|Muse)/i, 45],
+  [/base[_-]?url$/i, 35],
+  [/(secret|token)[_-]?(key)?$/i, 25],
+];
+
+/** Loose fuzzy score: token overlap between key and wanted words (with abbreviation expansion). */
+function fuzzyScore(key, words) {
+  const abbrev = { pg: 'postgres', mysql: 'mysql', mongo: 'mongodb', redis: 'redis', db: 'database' };
+  const tokens = key.toLowerCase().split(/[_-]+/).map((t) => abbrev[t] || t);
+  const k = tokens.join(' ');
+  let hits = 0;
+  for (const w of words) if (k.includes(w)) hits++;
+  return hits >= 2 ? 20 + hits * 5 : hits === 1 && /(url|uri|dsn|host|key|secret|token|password)/.test(k) ? 25 : 0;
+}
+
+/**
+ * Fuzzy-match env vars for a purpose. `kind` is 'db' or 'ai'.
+ * Returns [{ key, score, masked, value }] sorted by score desc.
+ * Callers must NEVER persist or display raw values — use `masked`.
+ */
+function fuzzyMatchEnv(text, kind) {
+  const patterns = kind === 'ai' ? ENV_AI_PATTERNS : ENV_DB_PATTERNS;
+  const words = kind === 'ai'
+    ? ['api', 'key', 'openai', 'anthropic', 'llm', 'token', 'model']
+    : ['db', 'database', 'postgres', 'mysql', 'mongo', 'redis', 'sqlite', 'sql', 'url', 'host', 'password', 'pass', 'user', 'port'];
+  const out = [];
+  for (const v of parseEnv(text)) {
+    let score = 0;
+    for (const [re, s] of patterns) {
+      if (re.test(v.key) && s > score) score = s;
+    }
+    const fz = fuzzyScore(v.key, words);
+    if (fz > score) score = fz;
+    if (score >= 25 && v.value) out.push({ key: v.key, score, masked: maskSecret(v.value), value: v.value });
+  }
+  return out.sort((a, b) => b.score - a.score).slice(0, 12);
+}
+
+/* ------------------------------------------------------------------ */
 /* Runbook: how to run this repo                                       */
 /* ------------------------------------------------------------------ */
 
@@ -42,19 +134,24 @@ function detectPort(root, modules) {
     /\.listen\(\s*['"]?(\d{2,5})/,
     /app\.run\([^)]*port\s*=\s*(\d{2,5})/i,
     /run\([^)]*['"]--port['"]\s*,\s*(\d{2,5})/,
+    /(?:^|\W)(?:VIS_|SERVER_|HTTP_)?PORT\s*=\s*(\d{2,5})/,
   ];
   let scanned = 0;
   for (const m of modules) {
     if (m.kind !== 'code' || scanned >= 60) continue;
+    // Example/fixture/test code skews the vote — the real app's port lives in real code.
+    if (/(^|\/)(examples?|fixtures?|__tests?__|tests?|__mocks__|e2e)(\/|$)/i.test(m.id)) continue;
     const text = readText(root, m.id, 120000);
     if (!text) continue;
     scanned++;
+    // Entry files get triple weight — the app's real port lives there.
+    const weight = m.isEntry ? 3 : 1;
     const head = text.split('\n').slice(0, 250).join('\n');
     for (const re of res) {
       const mt = head.match(re);
       if (mt) {
         const port = parseInt(mt[1], 10);
-        if (port >= 10 && port <= 65535) votes.set(port, (votes.get(port) || 0) + 1);
+        if (port >= 10 && port <= 65535) votes.set(port, (votes.get(port) || 0) + weight);
       }
     }
   }
@@ -62,11 +159,11 @@ function detectPort(root, modules) {
   return top ? top[0] : null;
 }
 
-function extractQuickstart(root) {
+function readmeSections(root) {
   const cands = listFiles(root, '.').filter((f) => /^readme\.md$/i.test(f));
-  if (!cands.length) return null;
+  if (!cands.length) return [];
   const text = readText(root, cands[0], 200000);
-  if (!text) return null;
+  if (!text) return [];
   const lines = text.split('\n');
   const sections = [];
   let cur = null;
@@ -75,11 +172,16 @@ function extractQuickstart(root) {
     if (h) {
       if (cur) sections.push(cur);
       cur = { heading: h[2].trim(), lines: [] };
-    } else if (cur && cur.lines.length < 25) {
+    } else if (cur && cur.lines.length < 60) {
       cur.lines.push(ln);
     }
   }
   if (cur) sections.push(cur);
+  return sections;
+}
+
+function extractQuickstart(root) {
+  const sections = readmeSections(root);
   const hit = sections.find((s) =>
     /install|getting.?started|quick.?start|usage|running|setup|develop/i.test(s.heading)
   );
@@ -88,9 +190,65 @@ function extractQuickstart(root) {
   return body.length ? { heading: hit.heading, lines: body } : null;
 }
 
+const README_CMD_START = /^(npx|npm|yarn|pnpm|node|python[0-9]?|pip[0-9]?|uv|poetry|pipenv|conda|go|cargo|rustc|docker|git|cd|make|cmake|bundle|ruby|php|composer|java|javac|mvn|gradle|dotnet|kubectl|helm|terraform|tofu|ansible|vagrant|curl|wget|ssh|scp|source|export|echo|mkdir|cp|mv|rm|chmod|chown|sudo|apt|apt-get|brew|dnf|yum|pacman|snap|flatpak|flask|django-admin|uvicorn|gunicorn|celery|redis-server|psql|mysql|mongosh|sqlite3|nvim|vim|code|open|xdg-open|gh|bun|deno)([\s]|$)/i;
+
+/** Pull runnable shell commands out of the README's install/run sections. */
+function extractReadmeCommands(root) {
+  const sections = readmeSections(root);
+  const wanted = sections.filter((s) =>
+    /install|getting.?started|quick.?start|usage|running|setup|develop|deploy/i.test(s.heading)
+  );
+  // Fallback: if no install/run section matched, scan every section's bash blocks.
+  const sources = wanted.length ? wanted : sections;
+  const commands = [];
+  const seen = new Set();
+  for (const s of sources) {
+    const text = s.lines.join('\n');
+    const blocks = [...text.matchAll(/```(?:bash|sh|shell|console)?\n([\s\S]*?)```/g)];
+    for (const b of blocks) {
+      for (let ln of b[1].split('\n')) {
+        ln = ln.trim().replace(/^\$\s*/, '');
+        if (!ln || ln.startsWith('#')) continue;
+        // must look like an actual shell command, not prose or a file tree
+        if (!README_CMD_START.test(ln) && !/^\.\//.test(ln)) continue;
+        ln = ln.replace(/\s{2,}#.*$/, '').trim(); // strip trailing "  # comment"
+        if (seen.has(ln) || commands.length >= 12) continue;
+        seen.add(ln);
+        commands.push({ command: ln, section: s.heading });
+      }
+    }
+  }
+  return commands;
+}
+
+/** Find package.json at root or one level down (monorepo-ish layouts). */
+function findPackageJson(root) {
+  const direct = readJson(root, 'package.json');
+  if (direct) return { pkg: direct, dir: '' };
+  for (const d of listFiles(root, '.')) {
+    const full = path.join(root, d);
+    try {
+      if (!fs.statSync(full).isDirectory()) continue;
+    } catch { continue; }
+    if (d.startsWith('.') || d === 'node_modules') continue;
+    const pkg = readJson(root, d + '/package.json');
+    if (pkg && pkg.scripts && Object.keys(pkg.scripts).length) return { pkg, dir: d };
+  }
+  return { pkg: null, dir: '' };
+}
+
+/** Python entry guess: manage.py (django) > app.py > main.py > wsgi.py > server.py */
+function detectPythonEntry(root) {
+  for (const f of ['manage.py', 'app.py', 'main.py', 'wsgi.py', 'server.py']) {
+    if (exists(root, f)) return f;
+  }
+  return null;
+}
+
 function detectRunbook(root, modules) {
-  const pkg = readJson(root, 'package.json');
+  const { pkg, dir } = findPackageJson(root);
   const scripts = (pkg && pkg.scripts) || {};
+  const cd = dir ? `cd ${dir} && ` : '';
 
   const langCount = {};
   for (const m of modules) {
@@ -102,43 +260,72 @@ function detectRunbook(root, modules) {
   if (exists(root, 'pnpm-lock.yaml')) pm = 'pnpm';
   else if (exists(root, 'yarn.lock')) pm = 'yarn';
   else if (exists(root, 'package-lock.json')) pm = 'npm';
-  else if (exists(root, 'package.json')) pm = 'npm';
+  else if (pkg) pm = 'npm';
   else if (exists(root, 'requirements.txt') || exists(root, 'pyproject.toml') || exists(root, 'setup.py')) pm = 'pip';
   else if (exists(root, 'go.mod')) pm = 'go';
   else if (exists(root, 'Cargo.toml')) pm = 'cargo';
 
   const steps = [];
-  if (pm === 'pip') {
-    steps.push({ title: 'Install dependencies', command: 'pip install -r requirements.txt' });
-  } else if (pm === 'go') {
-    steps.push({ title: 'Download modules', command: 'go mod download' });
-  } else if (pm === 'cargo') {
-    steps.push({ title: 'Fetch crates', command: 'cargo fetch' });
-  } else if (pm) {
-    steps.push({ title: 'Install dependencies', command: `${pm} install` });
+  const push = (title, command, source, optional) => {
+    if (!steps.some((s) => s.command === command)) steps.push({ title, command, source, optional: !!optional });
+  };
+
+  // ---- 1. README first: the repo's own instructions win ----
+  const readmeCmds = extractReadmeCommands(root);
+  const isInstallCmd = (c) => /install|pip install|npm (install|ci)|yarn|pnpm install|bundle install|go mod|venv/i.test(c);
+  const isRunCmd = (c) => /^(npm (run |start)|yarn |pnpm |python |uvicorn |gunicorn |flask |django|node |go run|cargo run|docker)/i.test(c);
+  for (const rc of readmeCmds.slice(0, 8)) {
+    const title = isInstallCmd(rc.command) ? 'Install dependencies' : isRunCmd(rc.command) ? 'Run the app' : 'From the README';
+    push(title, rc.command, 'readme');
   }
-  if (exists(root, '.env.example')) {
-    steps.push({ title: 'Configure environment', command: 'cp .env.example .env' });
+
+  // ---- 2. Detected fallback steps (only for gaps the README didn't cover) ----
+  const hasInstall = steps.some((s) => /install/i.test(s.title));
+  const hasRun = steps.some((s) => /run the app/i.test(s.title));
+
+  if (pm === 'pip' && !hasInstall) {
+    push('Create a virtual environment', 'python -m venv venv', 'detected');
+    push('Activate it', 'source venv/bin/activate', 'detected');
+    if (exists(root, 'requirements.txt')) push('Install dependencies', 'pip install -r requirements.txt', 'detected');
+    else push('Install the package', 'pip install -e .', 'detected');
+  } else if (pm === 'pip' && !steps.some((s) => /venv/i.test(s.command))) {
+    // README covered install/run but skipped the venv — still recommend it, first.
+    steps.unshift(
+      { title: 'Create a virtual environment', command: 'python -m venv venv', source: 'detected', optional: false },
+      { title: 'Activate it', command: 'source venv/bin/activate', source: 'detected', optional: false },
+    );
+  } else if (pm === 'go' && !hasInstall) {
+    push('Download modules', 'go mod download', 'detected');
+  } else if (pm === 'cargo' && !hasInstall) {
+    push('Fetch crates', 'cargo fetch', 'detected');
+  } else if (pm && !['pip', 'go', 'cargo'].includes(pm) && !hasInstall) {
+    push('Install dependencies', `${cd}${pm} install`, 'detected');
   }
-  const runScript = scripts.dev ? 'dev' : scripts.start ? 'start' : null;
-  if (runScript && pm && !['pip', 'go', 'cargo'].includes(pm)) {
-    const runner = pm === 'npm' ? 'npm run' : pm;
-    steps.push({ title: 'Run the app', command: `${runner} ${runScript}` });
-  } else if (pm === 'pip') {
-    const entry = modules.find((m) => m.isEntry && m.lang === 'py');
-    if (entry) steps.push({ title: 'Run the app', command: `python ${entry.id}` });
-  } else if (pm === 'go') {
-    steps.push({ title: 'Run the app', command: 'go run .' });
+  if (exists(root, '.env.example') && !steps.some((s) => /\.env/.test(s.command))) {
+    push('Configure environment', 'cp .env.example .env', 'detected');
   }
-  if (scripts.test) {
+  if (!hasRun) {
+    const runScript = scripts.dev ? 'dev' : scripts.start ? 'start' : null;
+    if (runScript && pm && !['pip', 'go', 'cargo'].includes(pm)) {
+      const runner = pm === 'npm' ? 'npm run' : pm;
+      push('Run the app', `${cd}${runner} ${runScript}`, 'detected');
+    } else if (pm === 'pip') {
+      const entry = detectPythonEntry(root);
+      if (entry === 'manage.py') push('Run the app', 'python manage.py runserver', 'detected');
+      else if (entry) push('Run the app', `python ${entry}`, 'detected');
+    } else if (pm === 'go') {
+      push('Run the app', 'go run .', 'detected');
+    } else if (pm === 'cargo') {
+      push('Run the app', 'cargo run', 'detected');
+    }
+  }
+  if (scripts.test && !steps.some((s) => /test/i.test(s.command))) {
     const runner = pm === 'npm' ? 'npm test' : pm === 'yarn' || pm === 'pnpm' ? `${pm} test` : null;
-    if (runner) steps.push({ title: 'Run tests', command: runner, optional: true });
+    if (runner) push('Run tests', `${cd}${runner}`, 'detected', true);
   }
   const hasCompose = exists(root, 'docker-compose.yml') || exists(root, 'compose.yml') || exists(root, 'compose.yaml');
-  if (hasCompose) {
-    steps.push({ title: 'Or run everything with Docker', command: 'docker compose up --build', optional: true });
-  } else if (exists(root, 'Dockerfile')) {
-    steps.push({ title: 'Or run with Docker', command: 'docker build -t app . && docker run -p 3000:3000 app', optional: true });
+  if ((hasCompose || exists(root, 'Dockerfile')) && !steps.some((s) => /docker/i.test(s.command))) {
+    push('Or run with Docker', hasCompose ? 'docker compose up --build' : 'docker build -t app . && docker run -p 3000:3000 app', 'detected', true);
   }
 
   const port = detectPort(root, modules);
@@ -491,4 +678,4 @@ function buildIntel(root, modules, edges) {
   };
 }
 
-module.exports = { buildIntel, detectRunbook, detectDatabase, extractSchema, explainFlow, cleanForTest: { parsePrisma, parseSql, parseMongoose, parseSqlAlchemy, parseDjango } };
+module.exports = { buildIntel, detectRunbook, detectDatabase, extractSchema, explainFlow, fuzzyMatchEnv, parseEnv, cleanForTest: { parsePrisma, parseSql, parseMongoose, parseSqlAlchemy, parseDjango } };

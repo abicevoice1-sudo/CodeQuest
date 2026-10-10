@@ -406,6 +406,38 @@ button.small { padding: 7px 14px; font-size: 13px; border-radius: 8px; }
 .ft-caret { width: 12px; color: #71717a; font-size: 10px; flex-shrink: 0; }
 .ft-icon { flex-shrink: 0; }
 .ft-name { overflow: hidden; text-overflow: ellipsis; }
+.ft-dirname { font-weight: 600; color: #e4e4e7; }
+/* indent guide */
+.ft-guide {
+  position: absolute; top: 0; bottom: 0; width: 1px;
+  background: #232329; pointer-events: none;
+}
+/* clean folder glyph */
+.ft-folder {
+  flex-shrink: 0; width: 14px; height: 11px; border-radius: 2px;
+  background: linear-gradient(180deg, #4b5563, #374151);
+  position: relative;
+}
+.ft-folder::before {
+  content: ''; position: absolute; top: -3px; left: 0;
+  width: 7px; height: 4px; border-radius: 2px 2px 0 0; background: #4b5563;
+}
+/* monogram file badges */
+.ft-badge {
+  flex-shrink: 0; min-width: 26px; height: 16px; padding: 0 4px;
+  border-radius: 4px; font-size: 9px; font-weight: 800; letter-spacing: 0.04em;
+  display: inline-flex; align-items: center; justify-content: center;
+  font-family: ui-monospace, monospace;
+}
+.b-ts { background: #1e3a5f; color: #7dd3fc; }
+.b-js { background: #4a3f1a; color: #fde047; }
+.b-py { background: #1e3a52; color: #93c5fd; }
+.b-go { background: #134e4a; color: #5eead4; }
+.b-cfg { background: #3b2f4a; color: #d8b4fe; }
+.b-doc { background: #2a2a30; color: #a1a1aa; }
+.b-web { background: #3f1d2e; color: #f9a8d4; }
+.b-db { background: #1c2f2a; color: #6ee7b7; }
+.b-misc { background: #26262c; color: #71717a; }
 .ft-count {
   margin-left: auto; font-size: 10.5px; color: #63636b; background: #1b1b20;
   border-radius: 8px; padding: 1px 7px; flex-shrink: 0;
@@ -840,3 +872,89 @@ details.filters section { padding: 0 12px 12px; }
   .guide-head, .guide-body { padding-left: 14px; padding-right: 14px; }
   .guide-tabs { padding: 10px 14px 0; }
 }
+
+/* ---------------- guide: architecture + db import ---------------- */
+.guide-src {
+  font-size: 10.5px; font-weight: 600; color: #7dd3fc; border: 1px solid #1e3a52;
+  border-radius: 10px; padding: 1px 8px; margin-left: 8px; text-transform: uppercase;
+}
+.guide-arch-entries { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 16px; }
+.guide-arch-label { font-size: 12px; color: #71717a; text-transform: uppercase; letter-spacing: 0.08em; }
+.guide-arch { display: flex; flex-direction: column; gap: 10px; }
+.guide-arch-layer {
+  background: #16161b; border: 1px solid #232329; border-radius: 12px; padding: 12px 14px;
+}
+.guide-arch-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+.guide-arch-links { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 8px; }
+.guide-arch-link { font-size: 12px; color: #71717a; }
+.guide-arch-link b { color: #a1a1aa; font-weight: 600; }
+.guide-arch-top { display: flex; gap: 6px; flex-wrap: wrap; }
+.guide-import { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 6px; }
+.ghost-btn { background: #17171c !important; border: 1px solid #2a2a32 !important; color: #d4d4d8 !important; }
+.guide-err { color: #f87171; font-size: 13px; margin: 8px 0; }
+.guide-envmatches { margin: 10px 0; display: flex; flex-direction: column; gap: 8px; }
+.guide-envmatch {
+  display: flex; align-items: center; gap: 10px;
+  background: #0e0e12; border: 1px solid #232329; border-radius: 9px; padding: 8px 12px;
+}
+.guide-envmatch code { color: #7dd3fc; font-size: 12.5px; }
+.guide-masked { color: #71717a; font-family: ui-monospace, monospace; font-size: 12.5px; flex: 1; }
+.guide-conn { display: flex; gap: 8px; margin: 10px 0; flex-wrap: wrap; }
+.guide-conn input {
+  flex: 1; min-width: 220px; background: #0c0c0f; border: 1px solid #2a2a32; color: #e4e4e7;
+  border-radius: 9px; padding: 9px 12px; font-size: 13px; font-family: ui-monospace, monospace;
+}
+.guide-live { color: #34d399; font-size: 11px; font-weight: 700; margin-left: 8px; text-transform: uppercase; }
+.guide-perm-backdrop {
+  position: absolute; inset: 0; z-index: 5;
+  background: rgba(0, 0, 0, 0.7); border-radius: 16px;
+  display: flex; align-items: center; justify-content: center; padding: 20px;
+}
+.guide-perm {
+  background: #17171c; border: 1px solid #2a2a32; border-radius: 14px;
+  padding: 20px; max-width: 420px;
+}
+.guide-perm h3 { margin: 0 0 10px; font-size: 15px; }
+.guide-perm p { color: #a1a1aa; font-size: 13.5px; line-height: 1.6; margin: 0 0 16px; }
+.guide-perm p code { background: #1e1e26; padding: 1px 6px; border-radius: 5px; color: #e4e4e7; }
+.guide-perm-actions { display: flex; gap: 10px; justify-content: flex-end; }
+.guide { position: relative; }
+
+/* ---------------- filter panel ---------------- */
+.fpanel {
+  border-bottom: 1px solid #1e1e24; padding: 10px 12px 12px;
+}
+.fpanel-head {
+  display: flex; align-items: center; justify-content: space-between; margin-bottom: 2px;
+  width: 100%; background: none; border: none; cursor: pointer; padding: 2px 0;
+}
+.fpanel-title { font-size: 13px; font-weight: 700; color: #e4e4e7; display: flex; align-items: center; gap: 8px; }
+.fpanel-badge {
+  background: #38bdf8; color: #0c0c0f; font-size: 10.5px; font-weight: 800;
+  border-radius: 10px; padding: 1px 8px;
+}
+.fpanel-reset {
+  background: none; border: none; color: #38bdf8; font-size: 12px; cursor: pointer; font-weight: 600;
+}
+.fpanel-reset:hover { text-decoration: underline; }
+.fpanel-presets { display: flex; gap: 6px; margin-bottom: 10px; flex-wrap: wrap; }
+.fpanel-preset {
+  background: #17171c; border: 1px solid #2a2a32; color: #a1a1aa;
+  border-radius: 8px; padding: 5px 10px; font-size: 11.5px; font-weight: 600; cursor: pointer;
+}
+.fpanel-preset:hover { border-color: #38bdf8; color: #fff; }
+.fpanel section { margin-bottom: 10px; }
+.fpanel section:last-child { margin-bottom: 0; }
+.fpanel h3 {
+  font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.08em;
+  color: #71717a; margin: 0 0 6px;
+}
+.fpanel .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.fpanel .chip-count {
+  background: #26262c; border-radius: 8px; padding: 0 6px; font-size: 10px; color: #a1a1aa;
+}
+.flegend {
+  padding: 10px 12px; font-size: 11.5px; color: #71717a;
+  display: flex; flex-direction: column; gap: 4px; border-bottom: 1px solid #1e1e24;
+}
+.flegend .counts { color: #52525b; }

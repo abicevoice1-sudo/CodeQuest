@@ -29,6 +29,7 @@ export interface GraphEdge {
 export interface IntelRunStep {
   title: string;
   command: string;
+  source?: 'readme' | 'detected';
   optional?: boolean;
 }
 export interface IntelRunbook {

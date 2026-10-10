@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.13.0 — 2026-10-10
+- Run tab v2: README-first — commands are pulled from the README's own instructions (marked "from README"), with Python venv flow (venv → activate → pip install → run) and monorepo subdir support. Port detection now weights entry files and ignores example/fixture dirs.
+- New 🏛 Architecture tab: layer map with dependency arrows, entry points, and top files per layer.
+- Database: "Import from real database" — permission-gated .env scan with fuzzy matching across every variable name (masked previews only), plus live schema introspection for PostgreSQL/MySQL/MongoDB/SQLite via the local server.
+- AI settings: "Import key from .env" with the same permission-gated fuzzy scan.
+- Graph filters rebuilt: collapsible panel with presets (Code only, Hotspots, Show all), layer counts, and an active-filter badge.
+- File explorer restyled: monogram type badges, indent guides, and clean folder glyphs.
+
 ## 1.12.0 — 2026-10-10
 - App guide (📖 Guide): a full repo briefing — how to run it (commands, port, README quickstart), the standard app flow, database engines + tables/columns (Prisma, SQL, Mongoose, SQLAlchemy, Django), and why the top connections exist. Proficiency is now a 5-level ladder: Non-technical, Beginner, Junior / Senior / Lead Developer. Non-technical readers get a true business lens: the guide becomes a business flow, and every file explains what the business needs it for and what customers feel if it breaks.
 

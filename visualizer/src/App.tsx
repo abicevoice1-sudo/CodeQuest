@@ -23,6 +23,7 @@ import { useFileCode } from './components/CodePanel';
 import { CommandPalette, recordRecent, type PaletteCommand } from './components/CommandPalette';
 import { FileTree } from './components/FileTree';
 import { FileDetail } from './components/FileDetail';
+import { FilterPanel } from './components/FilterPanel';
 import { SettingsModal } from './components/SettingsModal';
 import RepoGuide from './components/RepoGuide';
 import { parseVoiceCommand, resolveTarget, speak, startListening, voiceSupported } from './lib/voice';
@@ -160,6 +161,11 @@ export default function App() {
     () => [...new Set((graph?.modules || []).map((m) => m.layer))].sort(),
     [graph],
   );
+  const layerCounts = useMemo(() => {
+    const c: Record<string, number> = {};
+    for (const m of graph?.modules || []) c[m.layer] = (c[m.layer] || 0) + 1;
+    return c;
+  }, [graph]);
 
   useEffect(() => {
     if (allLayers.length && layers.size === 0) setLayers(new Set(allLayers));
@@ -489,13 +495,6 @@ export default function App() {
   }, [selectFile]);
 
 
-  const toggleIn = (set: Set<string>, v: string, apply: (s: Set<string>) => void) => {
-    const next = new Set(set);
-    if (next.has(v)) next.delete(v);
-    else next.add(v);
-    apply(next);
-  };
-
   const onDrop = useCallback(
     (ev: React.DragEvent) => {
       ev.preventDefault();
@@ -630,56 +629,22 @@ export default function App() {
             onSelect={selectFile}
             onFolderDiagram={showFolderDiagram}
           />
-          <details className="filters">
-            <summary>Graph filters</summary>
-            <section>
-              <h3>Layers</h3>
-              <div className="chips">
-                {allLayers.map((l) => (
-                  <button
-                    key={l}
-                    className={`chip${layers.has(l) ? ' on' : ''}`}
-                    onClick={() => toggleIn(layers, l, setLayers)}
-                  >
-                    <span className="dot" style={{ background: LAYER_COLORS[l] || '#94a3b8' }} />
-                    {l}
-                  </button>
-                ))}
-              </div>
-            </section>
-            <section>
-              <h3>Risk</h3>
-              <div className="chips">
-                {(Object.keys(RISK_COLORS) as Risk[]).map((r) => (
-                  <button
-                    key={r}
-                    className={`chip${risks.has(r) ? ' on' : ''}`}
-                    onClick={() => toggleIn(risks, r, setRisks)}
-                  >
-                    <span className="dot" style={{ background: RISK_COLORS[r] }} />
-                    {r}
-                  </button>
-                ))}
-              </div>
-            </section>
-            <section>
-              <h3>Show</h3>
-              <label className="toggle">
-                <input type="checkbox" checked={!hideTests} onChange={() => setHideTests(!hideTests)} />
-                Test files
-              </label>
-              <label className="toggle">
-                <input type="checkbox" checked={!hideAssets} onChange={() => setHideAssets(!hideAssets)} />
-                Configs & assets
-              </label>
-            </section>
-            <section className="legend">
-              <h3>Legend</h3>
-              <div><span className="cq-entry-dot" /> entry point</div>
-              <div><span className="edge-sample" /> import edge</div>
-              <div className="counts">{counts.shown} shown · {counts.hidden} hidden</div>
-            </section>
-          </details>
+          <FilterPanel
+            allLayers={allLayers}
+            layerCounts={layerCounts}
+            f={{ layers, risks, hideTests, hideAssets }}
+            onChange={(nf) => {
+              setLayers(nf.layers);
+              setRisks(nf.risks);
+              setHideTests(nf.hideTests);
+              setHideAssets(nf.hideAssets);
+            }}
+          />
+          <div className="flegend">
+            <div><span className="cq-entry-dot" /> entry point</div>
+            <div><span className="edge-sample" /> import edge</div>
+            <div className="counts">{counts.shown} shown · {counts.hidden} hidden</div>
+          </div>
         </aside>
 
         {selected && selectedId ? (
@@ -868,11 +833,12 @@ export default function App() {
         </div>
       )}
       {voiceMsg && <div className="toast voice">{voiceMsg}</div>}
-      {showSettings && <SettingsModal onClose={() => setShowSettings(false)} />}
+      {showSettings && <SettingsModal serverMode={serverMode} onClose={() => setShowSettings(false)} />}
       {showGuide && graph && (
         <RepoGuide
           graph={graph}
           prof={proficiency}
+          serverMode={serverMode}
           onClose={() => setShowGuide(false)}
           onOpenFile={(id) => { setShowGuide(false); selectFile(id); }}
         />

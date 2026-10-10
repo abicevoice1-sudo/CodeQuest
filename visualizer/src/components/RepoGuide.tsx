@@ -8,6 +8,7 @@ type Prof = Proficiency;
 const TABS = [
   { id: 'run', label: '🚀 Run it' },
   { id: 'flow', label: '🔀 App flow' },
+  { id: 'arch', label: '🏛 Architecture' },
   { id: 'db', label: '🗄️ Database' },
   { id: 'links', label: '🔗 Why connected' },
 ] as const;
@@ -95,20 +96,159 @@ function flowIntro(entry: string, prof: Prof): string {
   return `The app starts at ${e}. Each step is a file it pulls in, directly or through another file — read top to bottom for the standard flow.`;
 }
 
+const LAYER_ORDER = ['entry', 'app', 'ui component', 'domain', 'service', 'api route', 'data access', 'infra', 'util', 'test', 'config'];
+
+function layerRank(l: string): number {
+  const i = LAYER_ORDER.findIndex((x) => l.toLowerCase().includes(x));
+  return i === -1 ? 99 : i;
+}
+
+function ArchitectureTab({
+  graph,
+  prof,
+  onOpenFile,
+}: {
+  graph: CodeQuestGraph;
+  prof: Prof;
+  onOpenFile: (id: string) => void;
+}) {
+  const byLayer = new Map<string, { id: string; fanIn: number }[]>();
+  for (const m of graph.modules) {
+    if (m.kind !== 'code') continue;
+    const l = m.layer || 'other';
+    if (!byLayer.has(l)) byLayer.set(l, []);
+    byLayer.get(l)!.push({ id: m.id, fanIn: m.fanIn });
+  }
+  const layers = [...byLayer.entries()]
+    .map(([name, mods]) => ({
+      name,
+      count: mods.length,
+      top: mods.sort((a, b) => b.fanIn - a.fanIn).slice(0, 3),
+    }))
+    .sort((a, b) => layerRank(a.name) - layerRank(b.name));
+
+  const pipe = graph.intel?.flow?.pipeline || [];
+  const outOf = (l: string) => pipe.filter((p) => p.from === l).sort((a, b) => b.count - a.count).slice(0, 3);
+  const entries = graph.modules.filter((m) => m.isEntry && m.kind === 'code').slice(0, 6);
+
+  return (
+    <section>
+      <p className="guide-lede">
+        {prof === 'non-technical'
+          ? 'How the app is organized — each box is a department, and the arrows show which departments rely on which.'
+          : prof === 'beginner'
+            ? 'The codebase is organized into layers — groups of files with the same job. Arrows show which layers use which.'
+            : 'Layer map with inter-layer dependency counts. Click a file to inspect it.'}
+      </p>
+      {entries.length > 0 && (
+        <div className="guide-arch-entries">
+          <span className="guide-arch-label">Entry points</span>
+          {entries.map((e) => (
+            <button key={e.id} className="guide-file" onClick={() => onOpenFile(e.id)}>
+              ⚡ {shortName(e.id)}
+            </button>
+          ))}
+        </div>
+      )}
+      <div className="guide-arch">
+        {layers.map((l) => (
+          <div className="guide-arch-layer" key={l.name}>
+            <div className="guide-arch-head">
+              <span className="guide-layer">{l.name}</span>
+              <span className="guide-count">{l.count} files</span>
+            </div>
+            {outOf(l.name).length > 0 && (
+              <div className="guide-arch-links">
+                {outOf(l.name).map((p, i) => (
+                  <span key={i} className="guide-arch-link">
+                    → {p.count} to <b>{p.to}</b>
+                  </span>
+                ))}
+              </div>
+            )}
+            <div className="guide-arch-top">
+              {l.top.map((t) => (
+                <button key={t.id} className="guide-file" onClick={() => onOpenFile(t.id)} title={`${t.fanIn} importers`}>
+                  {shortName(t.id)}
+                </button>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
 export default function RepoGuide({
   graph,
   prof,
+  serverMode,
   onClose,
   onOpenFile,
 }: {
   graph: CodeQuestGraph;
   prof: Prof;
+  serverMode: boolean;
   onClose: () => void;
   onOpenFile: (id: string) => void;
 }) {
   const intel: RepoIntel | undefined = graph.intel;
   const [tab, setTab] = useState<(typeof TABS)[number]['id']>('run');
   const [copied, setCopied] = useState(false);
+  // DB live-import state
+  const [permAsk, setPermAsk] = useState<null | 'env'>(null);
+  const [envMatches, setEnvMatches] = useState<{ key: string; score: number; masked: string }[] | null>(null);
+  const [envError, setEnvError] = useState('');
+  const [connStr, setConnStr] = useState('');
+  const [liveSchema, setLiveSchema] = useState<{ engine: string; tables: { name: string; columns: { name: string; type: string }[] }[] } | null>(null);
+  const [liveError, setLiveError] = useState('');
+  const [liveLoading, setLiveLoading] = useState(false);
+  const [showConn, setShowConn] = useState(false);
+
+  const scanEnv = async () => {
+    setEnvError('');
+    setPermAsk(null);
+    if (!serverMode) {
+      setEnvError('Live .env reading needs the local server — run `codequest start`. You can still paste values manually below.');
+      return;
+    }
+    try {
+      const r = await fetch('/api/env-scan?kind=db');
+      const j = await r.json();
+      setEnvMatches(j.matches || []);
+      if (!(j.matches || []).length) setEnvError('No database variables found in .env — tried fuzzy matching on every key.');
+    } catch {
+      setEnvError('Could not read .env from the local server.');
+    }
+  };
+
+  const connectLive = async () => {
+    setLiveError('');
+    setLiveSchema(null);
+    const cs = connStr.trim();
+    if (!cs) { setLiveError('Paste a connection string first.'); return; }
+    if (!serverMode) { setLiveError('Live database connections need the local server — run `codequest start`.'); return; }
+    setLiveLoading(true);
+    try {
+      const r = await fetch('/api/db-schema', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ connectionString: cs }),
+      });
+      const j = await r.json();
+      if (j.error) {
+        const m = /^driver-missing:(.+)/.exec(j.error);
+        setLiveError(m ? `Need the ${m[1]} driver on this machine first.` : j.error);
+      } else {
+        setLiveSchema(j);
+      }
+    } catch {
+      setLiveError('Could not reach the database. Check the connection string and that the DB is running.');
+    } finally {
+      setLiveLoading(false);
+    }
+  };
 
   if (!intel) {
     return (
@@ -180,6 +320,7 @@ export default function RepoGuide({
                     <div className="guide-step-title">
                       {i + 1}. {s.title}
                       {s.optional && <span className="guide-opt">optional</span>}
+                      {s.source === 'readme' && <span className="guide-src">from README</span>}
                     </div>
                     <div className="guide-cmd">
                       <code>{s.command}</code>
@@ -266,6 +407,10 @@ export default function RepoGuide({
             </section>
           )}
 
+          {tab === 'arch' && (
+            <ArchitectureTab graph={graph} prof={prof} onOpenFile={onOpenFile} />
+          )}
+
           {tab === 'db' && (
             <section>
               {database.engines.length === 0 && schema.tables.length === 0 ? (
@@ -317,6 +462,65 @@ export default function RepoGuide({
                       ))}
                     </>
                   )}
+                  <h3 className="guide-h3">Import from the real database</h3>
+                  <p className="guide-lede">
+                    Connect to the live database to pull its <b>real</b> tables and columns — not just what the code hints at.
+                  </p>
+                  <div className="guide-import">
+                    <button className="guide-btn" onClick={() => setPermAsk('env')}>
+                      📥 Import connection from .env
+                    </button>
+                    <button className="guide-btn ghost-btn" onClick={() => setShowConn((s) => !s)}>
+                      🔌 Connect manually
+                    </button>
+                  </div>
+                  {envError && <p className="guide-err">{envError}</p>}
+                  {envMatches && (
+                    <div className="guide-envmatches">
+                      {envMatches.map((m) => (
+                        <div className="guide-envmatch" key={m.key}>
+                          <code>{m.key}</code>
+                          <span className="guide-masked">{m.masked}</span>
+                          <button
+                            className="guide-copy"
+                            title="Use this value as the connection string"
+                            onClick={() => { setConnStr(''); setShowConn(true); }}
+                          >
+                            Use →
+                          </button>
+                        </div>
+                      ))}
+                      <p className="guide-lede" style={{ marginTop: 8 }}>
+                        Values stay on this machine — only masked previews are shown. Paste the full value into the connection box below.
+                      </p>
+                    </div>
+                  )}
+                  {showConn && (
+                    <div className="guide-conn">
+                      <input
+                        type="password"
+                        value={connStr}
+                        onChange={(e) => setConnStr(e.target.value)}
+                        placeholder="postgres://user:pass@host:5432/db  ·  mysql://…  ·  mongodb://…  ·  /path/to.db"
+                      />
+                      <button className="guide-btn" onClick={connectLive} disabled={liveLoading}>
+                        {liveLoading ? 'Connecting…' : 'Connect & import schema'}
+                      </button>
+                    </div>
+                  )}
+                  {liveError && <p className="guide-err">{liveError}</p>}
+                  {liveSchema && (
+                    <>
+                      <h3 className="guide-h3">
+                        Live schema — {liveSchema.engine}
+                        <span className="guide-count">{liveSchema.tables.length} tables</span>
+                        <span className="guide-live">● live</span>
+                      </h3>
+                      {liveSchema.tables.map((t) => (
+                        <TableCard key={'live:' + t.name} t={{ name: t.name, source: 'live database', columns: t.columns, orm: 'live' }} />
+                      ))}
+                    </>
+                  )}
                 </>
               )}
             </section>
@@ -359,6 +563,22 @@ export default function RepoGuide({
             </section>
           )}
         </div>
+        {permAsk === 'env' && (
+          <div className="guide-perm-backdrop" onClick={() => setPermAsk(null)}>
+            <div className="guide-perm" onClick={(e) => e.stopPropagation()}>
+              <h3>🔑 Read your .env file?</h3>
+              <p>
+                CodeQuest wants to read <code>.env</code> in this repo to find database
+                connection details — using fuzzy matching across every variable name.
+                Only masked previews are ever shown; secrets never leave this machine.
+              </p>
+              <div className="guide-perm-actions">
+                <button className="ghost-btn guide-btn" onClick={() => setPermAsk(null)}>Cancel</button>
+                <button className="guide-btn" onClick={scanEnv}>Allow — scan .env</button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
