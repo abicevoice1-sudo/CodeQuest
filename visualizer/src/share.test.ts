@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { encodeView, decodeView, buildShareUrl } from './lib/share';
+import { encodeView, decodeView, buildShareUrl, isLocalOnlyUrl } from './lib/share';
 
 describe('encodeView/decodeView', () => {
   it('round-trips a full view', () => {
@@ -31,5 +31,21 @@ describe('buildShareUrl', () => {
     expect(url).toContain('#s=');
     expect(url.startsWith('https://example.com/report.html')).toBe(true);
     expect(decodeView(new URL(url).hash)).toEqual({ file: 'a.ts' });
+  });
+});
+
+describe('isLocalOnlyUrl', () => {
+  it('flags localhost variants', () => {
+    expect(isLocalOnlyUrl('http://localhost:1337/#s=abc')).toBe(true);
+    expect(isLocalOnlyUrl('http://127.0.0.1:1337/#s=abc')).toBe(true);
+    expect(isLocalOnlyUrl('http://0.0.0.0:1337/#s=abc')).toBe(true);
+    expect(isLocalOnlyUrl('http://my-mac.local:1337/#s=abc')).toBe(true);
+  });
+  it('flags local files', () => {
+    expect(isLocalOnlyUrl('file:///Users/syed/report.html#s=abc')).toBe(true);
+  });
+  it('passes real hosted URLs', () => {
+    expect(isLocalOnlyUrl('https://acme.com/report.html#s=abc')).toBe(false);
+    expect(isLocalOnlyUrl('https://syed.github.io/codequest/report.html#s=abc')).toBe(false);
   });
 });

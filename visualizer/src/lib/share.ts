@@ -50,6 +50,28 @@ export function buildShareUrl(v: SharedView, base?: string): string {
   return url.toString();
 }
 
+/** True if a share URL only works on this machine (localhost or local file).
+    Sending these to a teammate gets them "connection refused" — the honest
+    fix is telling the user, not silently copying a dead link. */
+export function isLocalOnlyUrl(url: string): boolean {
+  try {
+    const u = new URL(url);
+    if (u.protocol === 'file:') return true;
+    if (u.protocol !== 'http:' && u.protocol !== 'https:') return true;
+    const h = u.hostname.toLowerCase();
+    return (
+      h === 'localhost' ||
+      h === '127.0.0.1' ||
+      h === '0.0.0.0' ||
+      h === '[::1]' ||
+      h.endsWith('.local') ||
+      h.endsWith('.localhost')
+    );
+  } catch {
+    return true;
+  }
+}
+
 /** Copy text to clipboard, with fallback for older browsers. */
 export async function copyToClipboard(text: string): Promise<boolean> {
   try {

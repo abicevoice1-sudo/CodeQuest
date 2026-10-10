@@ -29,7 +29,7 @@ import RepoGuide from './components/RepoGuide';
 import { parseVoiceCommand, resolveTarget, speak, startListening, voiceSupported } from './lib/voice';
 import { narrateFile, migrateProficiency, PROFICIENCY_LABELS, PROFICIENCY_ORDER, type Narration, type Proficiency } from './lib/narrate';
 import { loadTheme, saveTheme, applyTheme, type ThemeId } from './lib/theme';
-import { buildShareUrl, copyToClipboard, decodeView } from './lib/share';
+import { buildShareUrl, copyToClipboard, decodeView, isLocalOnlyUrl } from './lib/share';
 
 /* ------------------------------------------------------------------ */
 /* Custom node                                                         */
@@ -164,8 +164,14 @@ export default function App() {
       blast: blast ? blastSourceRef.current || undefined : undefined,
     });
     const ok = await copyToClipboard(url);
-    setShareMsg(ok ? '🔗 Link copied — anyone opening it sees this view' : 'Could not copy — long-press the URL instead');
-    setTimeout(() => setShareMsg(''), 3000);
+    if (!ok) {
+      setShareMsg('Could not copy — long-press the URL instead');
+    } else if (isLocalOnlyUrl(url)) {
+      setShareMsg('🔗 Link copied — but it only opens on this machine. Export the HTML (codequest export) and host it to share with your team.');
+    } else {
+      setShareMsg('🔗 Link copied — anyone opening it sees this view');
+    }
+    setTimeout(() => setShareMsg(''), 5000);
   }, [selectedId, proficiency, showGuide, blast]);
   const [theme, setThemeState] = useState<ThemeId>(() => loadTheme());
   const pickTheme = useCallback((t: ThemeId) => {
